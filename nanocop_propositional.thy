@@ -124,7 +124,7 @@ primrec union_many where
 
 fun count where
   \<open>count x [] = 0\<close> |
-  \<open>count x (y # ys) = (if x = y then Suc 0 else 0) + count x ys\<close>
+  \<open>count x (y # ys) = (if x = y then Suc (count x ys) else count x ys)\<close>
 
 lemma count_0: \<open>count x xs = 0 \<longleftrightarrow> x \<notin> set xs\<close>
   by (induct xs) auto
@@ -149,7 +149,27 @@ lemma remove_count: \<open>member x ys \<Longrightarrow> count x ys = count x (r
   by (induct ys) auto
 
 lemma remove_count2: \<open>x \<noteq> y \<Longrightarrow> count x ys = count x (remove y ys)\<close> 
-  apply (induct ys) apply simp 
+proof (induct ys)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons z ys)
+  consider (1)\<open>z = y\<close> | (2)\<open>z \<noteq> y\<close> by fast
+  then show ?case
+  proof cases
+    case 1
+    then have \<open>count x (remove y (z # ys)) = count x ys\<close> 
+      by simp
+    moreover have \<open>x \<noteq> z \<Longrightarrow> count x ys = count x (z # ys)\<close> 
+      by simp
+    ultimately show ?thesis 
+      by (metis "1" Cons.prems)
+  next
+    case 2
+    show ?thesis 
+        using Cons.hyps Cons.prems by auto
+  qed
+qed
 
 fun permutation where
   \<open>permutation [] [] = True\<close> |
@@ -228,18 +248,18 @@ qed
 inductive CC (\<open>\<turnstile> _ _ _\<close> 0) where 
 Axiom: \<open>\<turnstile> [] _ _\<close> |
 Reduction: \<open>
-  (\<turnstile> C M ((pol,prop) # P)) \<Longrightarrow>
+  (\<turnstile> C M ((pol,prp) # P)) \<Longrightarrow>
   pol \<longleftrightarrow> \<not>pol' \<Longrightarrow>
-  (\<turnstile> ((Lit pol' prop) # C) M ((pol,prop) # P))\<close> |
+  (\<turnstile> ((Lit pol' prp) # C) M ((pol,prp) # P))\<close> |
 Permutation: \<open>
   (\<turnstile> C M P) \<Longrightarrow>
   permutation C C' \<Longrightarrow> permutation P P' \<Longrightarrow>
   (\<turnstile> C' M P')\<close> |
 Extention: \<open>
-  (\<turnstile> C' M ((pol,prop) # P)) \<Longrightarrow>
+  (\<turnstile> C' M ((pol,prp) # P)) \<Longrightarrow>
   exi_clause (\<lambda> (cid,C). C = C') M \<Longrightarrow>
   (\<turnstile> C M P) \<Longrightarrow>
-  (\<turnstile> ((Lit pol prop) # C) M P)\<close> |
+  (\<turnstile> ((Lit pol prp) # C) M P)\<close> |
 Decomposition: \<open>
   (\<turnstile> (C' @ C) M P) \<Longrightarrow>
   member (_,C') cs \<Longrightarrow>
@@ -312,13 +332,13 @@ proof -
     using that Extention Axiom by simp
   then have ?thesis if \<open>(\<turnstile> 
     [Lit False 0, Lit True 1] ?M [(True, 0),(False,1)])\<close> 
-    using that Permutation by force
+    using that Permutation by simp
   then have ?thesis if \<open>(\<turnstile> 
     [Lit True 1] ?M [(True, 0),(False,1)])\<close> 
     using that Reduction by fast
   then have ?thesis if \<open>(\<turnstile> 
     [Lit True 1] ?M [(False,1),(True, 0)])\<close> 
-    using that Permutation by force
+    using that Permutation by simp
   then show ?thesis using Reduction Axiom by simp
 qed
 (*-------------------------*)
@@ -331,7 +351,28 @@ fun is_path where
 definition \<open>
   mat_valid m \<equiv> \<forall> p. is_path p m \<longrightarrow> (\<exists> prop. member (True,prop) p \<and> member (False,prop) p)\<close>
 
-theorem path_soundness: \<open>(\<turnstile> c (Mat ((cid,c) # m)) []) \<Longrightarrow> mat_valid (Mat ((cid,c) # m))\<close>
-proof (induct rule: CC)
+definition \<open>
+  cc_valid c m p \<equiv> 
+    \<forall> p'. is_path p' m \<longrightarrow> (\<exists> m' \<in> set c. is_path p m') \<longrightarrow> set p \<subseteq> set p' \<longrightarrow> 
+      (\<exists> prop. member (True,prop) p \<and> member (False,prop) p)\<close>
+
+theorem path_soundness: \<open>(\<turnstile> c m p) \<Longrightarrow> cc_valid c m p\<close>
+proof (induct rule: CC.induct)
+  case (Axiom uu uv)
+  then show ?case 
+    using cc_valid_def by simp
+next
+  case (Reduction C M pol prp P pol')
+  then show ?case sorry
+next
+  case (Permutation C M P C' P')
+  then show ?case sorry
+next
+  case (Extention C' M pol prp P C)
+  then show ?case sorry
+next
+  case (Decomposition C' C M P uw cs)
+  then show ?case sorry
+qed
 
 end
