@@ -1,100 +1,73 @@
 theory NaNoCop imports Main
 begin
 
-(*----------FSET-----------*)
-datatype 'a fset 
-  = Empty (\<open>\<lbrace>\<rbrace>\<close>)
-  | Insert 'a \<open>'a fset\<close>
+primrec member (infix\<open>|\<in>|\<close> 200) where
+  \<open>(_ |\<in>| []) = False\<close> |
+  \<open>(x |\<in>| (x' # xs)) = ((x = x') \<or> (x |\<in>| xs))\<close>
 
-primrec fset_to_set where
-  \<open>fset_to_set Empty = {}\<close> |
-  \<open>fset_to_set (Insert x xs) = insert x (fset_to_set xs)\<close>
-
-lemma fset_is_finite: \<open>finite (fset_to_set xs)\<close> 
-  by (induct xs) auto
-
-primrec fmember (infix\<open>|\<in>|\<close> 200) where
-  \<open>(_ |\<in>| Empty) = False\<close> |
-  \<open>(x |\<in>| Insert x' xs) = ((x = x') \<or> (x |\<in>| xs))\<close>
-
-lemma fmember_is_member[simp]: \<open>x |\<in>| xs \<longleftrightarrow> x \<in> (fset_to_set xs)\<close> 
+lemma member_simp[simp]: \<open>x |\<in>| xs \<longleftrightarrow> x \<in> (set xs)\<close> 
   by (induct xs) simp_all
 
-abbreviation fnotmember (infix \<open>|\<notin>|\<close> 200) where \<open>x |\<notin>| xs \<equiv> \<not> x |\<in>| xs\<close>
+abbreviation notmember (infix \<open>|\<notin>|\<close> 200) where \<open>x |\<notin>| xs \<equiv> \<not> x |\<in>| xs\<close>
 
-definition \<open>finsert x xs \<equiv> (if (x |\<in>| xs) then xs else Insert x xs)\<close>
+definition \<open>linsert x xs \<equiv> (if (x |\<in>| xs) then xs else x # xs)\<close>
 
-lemma finsert_is_insert: \<open>fset_to_set (finsert x xs) = insert x (fset_to_set xs)\<close>
-  by (induct xs) (simp_all add: finsert_def insert_absorb)
+lemma linsert_is_insert: \<open>set (linsert x xs) = insert x (set xs)\<close>
+  by (induct xs) (simp_all add: linsert_def insert_absorb)
 
-syntax
-  "_insert_fset"     :: "args => 'a fset"  ("\<lbrace>(_)\<rbrace>")
+primrec subseteq (infix \<open>|\<subseteq>|\<close> 120) where
+  \<open>([] |\<subseteq>| _) = True\<close> |
+  \<open>((x # xs) |\<subseteq>| ys) = ((x |\<in>| ys) \<and> (xs |\<subseteq>| ys))\<close>
 
-translations
-  "\<lbrace>x, xs\<rbrace>" == "CONST finsert x \<lbrace>xs\<rbrace>"
-  "\<lbrace>x\<rbrace>"     == "CONST finsert x \<lbrace>\<rbrace>"
-
-primrec fsubseteq (infix \<open>|\<subseteq>|\<close> 120) where
-  \<open>(Empty |\<subseteq>| _) = True\<close> |
-  \<open>(Insert x xs |\<subseteq>| ys) = ((x |\<in>| ys) \<and> (xs |\<subseteq>| ys))\<close>
-
-lemma fsubseteq_is_subseteq[simp]: \<open>xs |\<subseteq>| ys \<longleftrightarrow> (fset_to_set xs) \<subseteq> (fset_to_set ys)\<close> 
+lemma subseteq_simp[simp]: \<open>xs |\<subseteq>| ys \<longleftrightarrow> (set xs) \<subseteq> (set ys)\<close> 
   by (induct xs) simp_all
 
-primrec fremove where
-  \<open>fremove _ \<lbrace>\<rbrace> = \<lbrace>\<rbrace>\<close> |
-  \<open>fremove x (Insert y ys) = (if y = x then fremove x ys else Insert y (fremove x ys))\<close>
+primrec lremove where
+  \<open>lremove _ [] = []\<close> |
+  \<open>lremove x (y # ys) = (if y = x then lremove x ys else y # (lremove x ys))\<close>
 
-lemma fremove_is_remove: \<open>fset_to_set (fremove x xs) = (fset_to_set xs) - {x}\<close>
+lemma lremove_simp[simp]: \<open>set (lremove x xs) = (set xs) - {x}\<close>
   by (induct xs) (simp_all add: insert_Diff_if)
   
-primrec fminus (infix \<open>|-|\<close> 210) where
-  \<open>xs |-| \<lbrace>\<rbrace> = xs\<close> |
-  \<open>xs |-| (Insert y ys) = (fremove y xs) |-| ys\<close>
+primrec lminus (infix \<open>|-|\<close> 210) where
+  \<open>xs |-| [] = xs\<close> |
+  \<open>xs |-| (y # ys) = (lremove y xs) |-| ys\<close>
 
-lemma hoist_fremove:\<open>fset_to_set ((fremove x xs) |-| ys) = fset_to_set (fremove x (xs |-| ys))\<close> 
+lemma hoist_lremove:\<open>set ((lremove x xs) |-| ys) = set (lremove x (xs |-| ys))\<close> 
   apply (induct ys arbitrary: x xs)
    apply simp
-  by (metis Diff_insert Diff_insert2 fminus.simps(2) fremove_is_remove)
+  by (metis Diff_insert Diff_insert2 lminus.simps(2) lremove_simp)
 
-lemma fminus_is_minus[simp]: \<open>fset_to_set (xs |-| ys) = (fset_to_set xs) - (fset_to_set ys)\<close>
+lemma lminus_simp[simp]: \<open>set (xs |-| ys) = (set xs) - (set ys)\<close>
 proof (induct ys)
-  case Empty
+  case Nil
   then show ?case by simp
 next
-  case (Insert y ys)
-  have \<open>fset_to_set (xs |-| Insert y ys) = fset_to_set (xs |-| ys) - {y}\<close>
-    by (simp add: hoist_fremove fremove_is_remove)
+  case (Cons y ys)
+  have \<open>set (xs |-| (y # ys)) = set (xs |-| ys) - {y}\<close>
+    by (simp add: hoist_lremove)
   then show ?case
-    using Insert.hyps by force
+    using Cons.hyps by force
 qed
 
-definition fequal (infix \<open>|=|\<close> 120) where \<open>xs |=| ys \<equiv> xs |\<subseteq>| ys \<and> ys |\<subseteq>| xs\<close>
+definition lequal (infix \<open>|=|\<close> 120) where \<open>xs |=| ys \<equiv> xs |\<subseteq>| ys \<and> ys |\<subseteq>| xs\<close>
 
-lemma fequal_is_equal[simp]: \<open>xs |=| ys \<longleftrightarrow> (fset_to_set xs) = (fset_to_set ys)\<close>
-  by (simp add: fequal_def set_eq_subset)
+lemma lequal_simp[simp]: \<open>xs |=| ys \<longleftrightarrow> (set xs) = (set ys)\<close>
+  by (simp add: lequal_def set_eq_subset)
 
-primrec fimage where
-  \<open>fimage f \<lbrace>\<rbrace> = \<lbrace>\<rbrace>\<close> |
-  \<open>fimage f (Insert x xs) = Insert (f x) (fimage f xs)\<close>
+primrec lunion (infix \<open>|\<union>|\<close> 110) where
+  \<open>lunion xs [] = xs\<close> |
+  \<open>lunion xs (y # ys) = (if y |\<in>| xs then lunion xs ys else y # (lunion xs ys))\<close>
 
-lemma fimage_is_image[simp]: \<open>fset_to_set (fimage f xs) = image f (fset_to_set xs)\<close>
-  by (induct xs) simp_all
-
-primrec funion (infix \<open>|\<union>|\<close> 110) where
-  \<open>funion xs \<lbrace>\<rbrace> = xs\<close> |
-  \<open>funion xs (Insert y ys) = (if y |\<in>| xs then funion xs ys else Insert y (funion xs ys))\<close>
-
-lemma funion_is_union[simp]: \<open>fset_to_set (xs |\<union>| ys) = fset_to_set xs \<union> fset_to_set ys\<close> 
+lemma lunion_simp[simp]: \<open>set (xs |\<union>| ys) = set xs \<union> set ys\<close> 
   by (induct ys) auto
 
-primrec isfset where
-  \<open>isfset \<lbrace>\<rbrace> = True\<close> |
-  \<open>isfset (Insert x xs) = (x |\<notin>| xs \<and> isfset xs)\<close>
+primrec isset where
+  \<open>isset [] = True\<close> |
+  \<open>isset (x # xs) = (x |\<notin>| xs \<and> isset xs)\<close>
 
-primrec ffold where
-  \<open>ffold f \<lbrace>\<rbrace> s = s\<close> |
-  \<open>ffold f (Insert x xs) s = ffold f xs (f x s)\<close>
+lemma isset_length: \<open>isset xs \<Longrightarrow> size xs = size (sorted_list_of_set (set xs))\<close>
+  by (induct xs) simp_all
 (*-------------------------*)
 
 
@@ -103,23 +76,70 @@ datatype trm
   | Const nat
   | Fun nat \<open>trm list\<close>
 
-datatype clause_elem
+datatype mat
   = Lit bool nat \<open>trm list\<close>
-  | Mat \<open>mat_elem fset\<close>
-and mat_elem
-  = Cls nat \<open>clause_elem fset\<close>
+  | Mat \<open>(nat \<times> mat list) list\<close>
 
-primrec fimage_clause where \<open>fimage_clause f (idC,C) = (idC,fimage f C)\<close>
+fun exi_clause where
+  \<open>exi_clause P (Lit _ _ _) = False\<close> |
+  \<open>exi_clause P (Mat []) = False\<close> |
+  \<open>exi_clause P (Mat ((n,ms) # cs)) = 
+  (P (n,ms) \<or> (\<exists> m \<in> set ms. exi_clause P m) \<or> exi_clause P (Mat cs))\<close>
 
-fun clause_elem_size and mat_elem_size where
-  \<open>clause_elem_size (Lit _ _ _) = 1\<close> |
-  \<open>clause_elem_size (Mat \<lbrace>\<rbrace>) = 1\<close> |
-  \<open>clause_elem_size (Mat (Insert C Cs)) = 1 + mat_elem_size C + clause_elem_size (Mat Cs)\<close> |
-  \<open>mat_elem_size (Cls _ \<lbrace>\<rbrace>) = 1\<close> |
-  \<open>mat_elem_size (Cls idC (Insert M Ms)) = 1 + clause_elem_size M + mat_elem_size (Cls idC Ms)\<close>
+definition \<open>exi_mat P m \<equiv> P m \<or> exi_clause (\<lambda> (_,ms). \<exists> m' \<in> set ms. P m') m\<close>
 
-lemma ignore_id: \<open>mat_elem_size (Cls id1 C) = mat_elem_size (Cls id2 C)\<close> 
-  by (induct C) simp_all
+fun all_clause where
+  \<open>all_clause P (Lit _ _ _) = True\<close> |
+  \<open>all_clause P (Mat []) = True\<close> |
+  \<open>all_clause P (Mat ((n,ms) # cs)) = 
+  (P (n,ms) \<and> (\<forall> m \<in> set ms. all_clause P m) \<and> all_clause P (Mat cs))\<close>
+
+definition \<open>all_mat P m \<equiv> P m \<and> all_clause (\<lambda> (_,ms). \<forall> m' \<in> set ms. P m') m\<close>
+
+definition \<open>id_exists idty m \<equiv> exi_clause (\<lambda> (n,_). n = idty) m\<close>
+
+fun ids_unique where
+  \<open>ids_unique (Lit b n ts) = True\<close> |
+  \<open>ids_unique (Mat []) = True\<close> |
+  \<open>ids_unique (Mat ((n,ms) # cs)) = (
+    (\<forall> m \<in> set ms. ids_unique m \<and> \<not>id_exists n m) \<and> 
+    \<not>id_exists n (Mat cs) \<and> 
+    ids_unique (Mat cs))\<close>
+
+primrec siblings where
+  \<open>siblings c1 c2 (Lit _ _ _) = False\<close> |
+  \<open>siblings c1 c2 (Mat cs) = (member c1 cs \<and> member c2 cs)\<close>
+
+abbreviation \<open>
+  alpha_top_level cid l m \<equiv> (\<exists> c cid' c'. 
+    cid \<noteq> cid' \<and> 
+    siblings (cid,c) (cid',c') m \<and> 
+    (\<exists> m' \<in> set c'. exi_mat (\<lambda> l'. l = l') m'))\<close>
+
+definition \<open>
+  alpha_related m cid l \<equiv> 
+    exi_mat (alpha_top_level cid l) m\<close>
+
+primrec union_many where
+  \<open>union_many [] = {}\<close> |
+  \<open>union_many (xs # ys) = xs \<union> (union_many ys)\<close>
+
+primrec vars_term where 
+  \<open>vars_term (Var i) = {i}\<close> |
+  \<open>vars_term (Const i) = {}\<close> |
+  \<open>vars_term (Fun i ts) = union_many (map vars_term ts)\<close>
+
+primrec var_in_mat where
+  \<open>var_in_mat v (Lit _ _ ts) = (\<exists> t \<in> set ts. v \<in> vars_term t)\<close> |
+  \<open>var_in_mat v (Mat _) = False\<close>
+
+abbreviation \<open>var_in_mats v ms \<equiv> (\<exists> m \<in> ms. exi_mat (var_in_mat v) m)\<close>
+
+abbreviation \<open>var_in_clause v cid m \<close>
+
+definition \<open>
+  free_var v cid m \<equiv> 
+    exi_mat (\<lambda> m'. \<exists> c. (cid,c) \<in> set m') m\<close>
 
 primrec substitute where
 \<open>substitute \<sigma> (Var i) = Var (\<sigma> i)\<close> |
@@ -130,24 +150,38 @@ definition
 \<open>compliment \<sigma> pol pred trms pol' pred' trms' \<equiv>
   (pol \<longleftrightarrow> \<not>pol') \<and> pred = pred' \<and> (map (substitute \<sigma>) trms  = map (substitute \<sigma>) trms')\<close>
 
-fun mat_in_clause and mat_in_mat where
-  \<open>mat_in_clause M (Cls _ \<lbrace>\<rbrace>) = False\<close> |
-  \<open>mat_in_clause M (Cls idC (Insert M' Ms)) = 
-    (M = M' \<or> mat_in_mat M M' \<or> mat_in_clause M (Cls idC Ms))\<close> |
-  \<open>mat_in_mat M (Lit _ _ _) = False\<close> |
-  \<open>mat_in_mat M (Mat \<lbrace>\<rbrace>) = False\<close> |
-  \<open>mat_in_mat M (Mat (Insert C Cs)) = ((mat_in_clause M C) \<or> (mat_in_mat M (Mat Cs)))\<close>
+definition \<open>permutation xs ys \<equiv> length xs = length ys \<and> set xs \<inter> set ys = {}\<close>
 
-fun clause_in_mat and clause_in_clause where
-  \<open>clause_in_mat C (Lit _ _ _) = False\<close> |
-  \<open>clause_in_mat C (Mat \<lbrace>\<rbrace>) = False\<close> |
-  \<open>clause_in_mat C (Mat (Insert C' Cs)) = 
-    (C = C' \<or> clause_in_clause C C' \<or> clause_in_mat C (Mat Cs))\<close> |
-  \<open>clause_in_clause C (Cls _ \<lbrace>\<rbrace>) = False\<close> |
-  \<open>clause_in_clause C (Cls idC (Insert M Ms)) = 
-    (clause_in_mat C M \<or> clause_in_clause C (Cls idC Ms))\<close>
+inductive CC' (\<open>\<turnstile> _ _ _ _\<close> 0) where 
+Axiom: \<open>\<turnstile> _ [] _ _\<close> |
+Reduction: \<open>
+  (\<turnstile> \<sigma> C M ((pol,pred,trms) # P)) \<Longrightarrow>
+  compliment \<sigma> pol pred trms pol' pred' trms' \<Longrightarrow>
+  (\<turnstile> \<sigma> ((Lit pol' pred' trms') # C) M ((pol,pred,trms) # P))\<close> |
+Permutation: \<open>
+  (\<turnstile> \<sigma> C M P) \<Longrightarrow>
+  permutation C C' \<Longrightarrow> permutation P P' \<Longrightarrow>
+  (\<turnstile> \<sigma> C' M P')\<close> 
 
-lemma \<open>clause_in_clause C' (Cls idC C) \<longrightarrow> (\<exists> M. C' |\<in>| M \<and> mat_in_clause (Mat M) (Cls idC C))\<close>sorry
+(*
+Extension: \<open>
+  (\<turnstile> \<sigma> C M P) \<Longrightarrow>
+  copy_clause \<delta> M C1 C2 \<Longrightarrow>
+  (mat_replace C1 C2 (Mat M) (Mat M')) \<Longrightarrow>
+  (\<turnstile> \<sigma> C3 M' (P |\<union>| \<lbrace>(pol,pred,trms)\<rbrace>)) \<Longrightarrow>
+  b_clause (pol,pred,trms) C2 (_,C3) \<Longrightarrow>
+  extension_clause M (P |\<union>| \<lbrace>(pol,pred,trms)\<rbrace>) C1 \<Longrightarrow>
+  contains_mat_in_clause (Lit pol' pred' trms') C2 \<Longrightarrow>
+  compliment \<sigma> pol pred trms pol' pred' trms' \<Longrightarrow>
+  (\<turnstile> \<sigma> (C |\<union>| \<lbrace>Lit pol pred trms\<rbrace>) M P)\<close> |
+Decomposition: \<open>
+  (\<turnstile> \<sigma> (C |\<union>| C') M P) \<Longrightarrow>
+  (_,C') |\<in>| M' \<Longrightarrow>
+  (\<turnstile> \<sigma> (C |\<union>| \<lbrace>Mat M'\<rbrace>) M P)\<close>*)
+
+
+function free_vars where
+  \<open>free_vars M\<close>
 
 function b_clause where
   \<open>b_clause pol pred trms \<lbrace>\<rbrace> = \<lbrace>\<rbrace>\<close> |
@@ -163,8 +197,7 @@ function b_clause where
   by pat_completeness auto
 termination
   apply (relation \<open>measure (\<lambda> (_, _, _, C). mat_elem_size (Cls 0 C))\<close>) 
-     apply simp_all
-  by (metis add.assoc ignore_id less_SucI less_add_Suc1)
+  by simp_all (metis add.assoc ignore_id less_SucI less_add_Suc1)
 
 inductive mat_replace where
 \<open>\<not> contains_clause_in_mat C M \<Longrightarrow> mat_replace C C' (Mat M) (Mat M)\<close> |

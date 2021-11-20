@@ -109,12 +109,17 @@ datatype clause_elem
 and mat_elem
   = Cls nat \<open>clause_elem fset\<close>
 
+primrec fimage_clause where \<open>fimage_clause f (idC,C) = (idC,fimage f C)\<close>
+
 fun clause_elem_size and mat_elem_size where
   \<open>clause_elem_size (Lit _ _ _) = 1\<close> |
   \<open>clause_elem_size (Mat \<lbrace>\<rbrace>) = 1\<close> |
-  \<open>clause_elem_size (Mat (Insert C Cs)) = mat_elem_size C + clause_elem_size (Mat Cs)\<close> |
+  \<open>clause_elem_size (Mat (Insert C Cs)) = 1 + mat_elem_size C + clause_elem_size (Mat Cs)\<close> |
   \<open>mat_elem_size (Cls _ \<lbrace>\<rbrace>) = 1\<close> |
-  \<open>mat_elem_size (Cls idC (Insert M Ms)) = clause_elem_size M + mat_elem_size (Cls idC Ms)\<close>
+  \<open>mat_elem_size (Cls idC (Insert M Ms)) = 1 + clause_elem_size M + mat_elem_size (Cls idC Ms)\<close>
+
+lemma ignore_id: \<open>mat_elem_size (Cls id1 C) = mat_elem_size (Cls id2 C)\<close> 
+  by (induct C) simp_all
 
 primrec substitute where
 \<open>substitute \<sigma> (Var i) = Var (\<sigma> i)\<close> |
@@ -124,7 +129,6 @@ primrec substitute where
 definition 
 \<open>compliment \<sigma> pol pred trms pol' pred' trms' \<equiv>
   (pol \<longleftrightarrow> \<not>pol') \<and> pred = pred' \<and> (map (substitute \<sigma>) trms  = map (substitute \<sigma>) trms')\<close>
-
 
 fun mat_in_clause and mat_in_mat where
   \<open>mat_in_clause M (Cls _ \<lbrace>\<rbrace>) = False\<close> |
@@ -143,17 +147,26 @@ fun clause_in_mat and clause_in_clause where
   \<open>clause_in_clause C (Cls idC (Insert M Ms)) = 
     (clause_in_mat C M \<or> clause_in_clause C (Cls idC Ms))\<close>
 
-inductive b_clause where
-1: \<open>
-  (Lit pol pred trms) |\<in>| C \<Longrightarrow> 
-  b_clause (pol, pred, trms) (_,C) (_,C |-| \<lbrace>(Lit pol pred trms)\<rbrace>)\<close>|
-2: \<open>
-  b_clause L C' Cb \<Longrightarrow> 
-  C' |\<in>| M \<Longrightarrow> 
-  (Mat M) |\<in>| C \<Longrightarrow> 
-  b_clause L (_,C) (_,finsert (Mat \<lbrace>Cb\<rbrace>) (C |-| \<lbrace>Mat M\<rbrace>))\<close>
+lemma \<open>clause_in_clause C' (Cls idC C) \<longrightarrow> (\<exists> M. C' |\<in>| M \<and> mat_in_clause (Mat M) (Cls idC C))\<close>sorry
 
-primrec fimage_clause where \<open>fimage_clause f (idC,C) = (idC,fimage f C)\<close>
+function free_vars where
+  \<open>free_vars M\<close>
+
+function b_clause where
+  \<open>b_clause pol pred trms \<lbrace>\<rbrace> = \<lbrace>\<rbrace>\<close> |
+  \<open>b_clause pol pred trms (Insert (Lit pol' pred' trms') C) = (
+    if pol = pol' \<and> pred = pred' \<and> trms = trms'
+    then C
+    else Insert (Lit pol' pred' trms') (b_clause pol pred trms C))\<close> |
+  \<open>b_clause pol pred trms (Insert (Mat \<lbrace>\<rbrace>) C) = (Insert (Mat \<lbrace>\<rbrace>) C)\<close> |
+  \<open>b_clause pol pred trms (Insert (Mat (Insert (Cls idC' C') Cs)) C) = (
+    if mat_in_clause (Lit pol pred trms) (Cls idC' C')
+    then (Insert (Mat (\<lbrace>(Cls idC' (b_clause pol pred trms C'))\<rbrace>)) C)
+    else (Insert (Mat (Insert (Cls idC' C') Cs)) (b_clause pol pred trms C)))\<close> 
+  by pat_completeness auto
+termination
+  apply (relation \<open>measure (\<lambda> (_, _, _, C). mat_elem_size (Cls 0 C))\<close>) 
+  by simp_all (metis add.assoc ignore_id less_SucI less_add_Suc1)
 
 inductive mat_replace where
 \<open>\<not> contains_clause_in_mat C M \<Longrightarrow> mat_replace C C' (Mat M) (Mat M)\<close> |
