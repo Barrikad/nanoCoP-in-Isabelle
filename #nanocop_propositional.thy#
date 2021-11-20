@@ -124,7 +124,7 @@ primrec union_many where
 
 fun count where
   \<open>count x [] = 0\<close> |
-  \<open>count x (y # ys) = (if x = y then Suc 0 else 0) + count x ys\<close>
+  \<open>count x (y # ys) = (if x = y then Suc (count x ys) else count x ys)\<close>
 
 lemma count_0: \<open>count x xs = 0 \<longleftrightarrow> x \<notin> set xs\<close>
   by (induct xs) auto
@@ -149,7 +149,27 @@ lemma remove_count: \<open>member x ys \<Longrightarrow> count x ys = count x (r
   by (induct ys) auto
 
 lemma remove_count2: \<open>x \<noteq> y \<Longrightarrow> count x ys = count x (remove y ys)\<close> 
-  apply (induct ys) apply simp 
+proof (induct ys)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons z ys)
+  consider (1)\<open>z = y\<close> | (2)\<open>z \<noteq> y\<close> by fast
+  then show ?case
+  proof cases
+    case 1
+    then have \<open>count x (remove y (z # ys)) = count x ys\<close> 
+      by simp
+    moreover have \<open>x \<noteq> z \<Longrightarrow> count x ys = count x (z # ys)\<close> 
+      by simp
+    ultimately show ?thesis 
+      by (metis "1" Cons.prems)
+  next
+    case 2
+    show ?thesis 
+        using Cons.hyps Cons.prems by auto
+  qed
+qed
 
 fun permutation where
   \<open>permutation [] [] = True\<close> |
@@ -312,13 +332,13 @@ proof -
     using that Extention Axiom by simp
   then have ?thesis if \<open>(\<turnstile> 
     [Lit False 0, Lit True 1] ?M [(True, 0),(False,1)])\<close> 
-    using that Permutation by force
+    using that Permutation by simp
   then have ?thesis if \<open>(\<turnstile> 
     [Lit True 1] ?M [(True, 0),(False,1)])\<close> 
     using that Reduction by fast
   then have ?thesis if \<open>(\<turnstile> 
     [Lit True 1] ?M [(False,1),(True, 0)])\<close> 
-    using that Permutation by force
+    using that Permutation by simp
   then show ?thesis using Reduction Axiom by simp
 qed
 (*-------------------------*)
