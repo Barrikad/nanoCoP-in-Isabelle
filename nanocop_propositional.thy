@@ -69,58 +69,11 @@ primrec isset where
 
 lemma isset_length: \<open>isset xs \<Longrightarrow> size xs = size (sorted_list_of_set (set xs))\<close>
   by (induct xs) simp_all
-(*-------------------------*)
-
-
-(*--------NaNoCop----------*)
-datatype mat 
-  = Lit bool nat
-  | Mat \<open>(nat \<times> mat list) list\<close>
-
-
-fun exi_clause where
-  \<open>exi_clause P (Lit _ _) = False\<close> |
-  \<open>exi_clause P (Mat []) = False\<close> |
-  \<open>exi_clause P (Mat ((n,ms) # cs)) = 
-  (P (n,ms) \<or> (\<exists> m \<in> set ms. exi_clause P m) \<or> exi_clause P (Mat cs))\<close>
-
-definition \<open>exi_mat P m \<equiv> P m \<or> exi_clause (\<lambda> (_,ms). \<exists> m' \<in> set ms. P m') m\<close>
-
-fun all_clause where
-  \<open>all_clause P (Lit _ _) = True\<close> |
-  \<open>all_clause P (Mat []) = True\<close> |
-  \<open>all_clause P (Mat ((n,ms) # cs)) = 
-  (P (n,ms) \<and> (\<forall> m \<in> set ms. all_clause P m) \<and> all_clause P (Mat cs))\<close>
-
-definition \<open>all_mat P m \<equiv> P m \<and> all_clause (\<lambda> (_,ms). \<forall> m' \<in> set ms. P m') m\<close>
-
-definition \<open>id_exists idty m \<equiv> exi_clause (\<lambda> (n,_). n = idty) m\<close>
-
-fun ids_unique where
-  \<open>ids_unique (Lit b n) = True\<close> |
-  \<open>ids_unique (Mat []) = True\<close> |
-  \<open>ids_unique (Mat ((n,ms) # cs)) = (
-    (\<forall> m \<in> set ms. ids_unique m \<and> \<not>id_exists n m) \<and> 
-    \<not>id_exists n (Mat cs) \<and> 
-    ids_unique (Mat cs))\<close>
-
-primrec siblings where
-  \<open>siblings c1 c2 (Lit _ _) = False\<close> |
-  \<open>siblings c1 c2 (Mat cs) = (member c1 cs \<and> member c2 cs)\<close>
-
-abbreviation \<open>
-  alpha_top_level cid l m \<equiv> (\<exists> c cid' c'. 
-    cid \<noteq> cid' \<and> 
-    siblings (cid,c) (cid',c') m \<and> 
-    (\<exists> m' \<in> set c'. exi_mat (\<lambda> l'. l = l') m'))\<close>
-
-definition \<open>
-  alpha_related m cid l \<equiv> 
-    exi_mat (alpha_top_level cid l) m\<close>
 
 primrec union_many where
   \<open>union_many [] = {}\<close> |
   \<open>union_many (xs # ys) = xs \<union> (union_many ys)\<close>
+
 
 fun count where
   \<open>count x [] = 0\<close> |
@@ -236,6 +189,48 @@ next
   ultimately show ?case sorry
 qed
   
+(*-------------------------*)
+
+
+(*--------NaNoCop----------*)
+datatype mat 
+  = Lit bool nat
+  | Mat \<open>(nat \<times> (nat \<times> mat) list) list\<close>
+
+
+fun exi_clause where
+  \<open>exi_clause P (_,Lit _ _) = False\<close> |
+  \<open>exi_clause P (_,Mat []) = False\<close> |
+  \<open>exi_clause P (mid,Mat ((cid,ms) # cs)) = 
+  (P (cid,ms) \<or> (\<exists> m \<in> set ms. exi_clause P m) \<or> exi_clause P (mid,Mat cs))\<close>
+
+definition \<open>exi_mat P m \<equiv> P m \<or> exi_clause (\<lambda> (_,ms). \<exists> m' \<in> set ms. P m') m\<close>
+
+fun all_clause where
+  \<open>all_clause P (_,Lit _ _) = True\<close> |
+  \<open>all_clause P (_,Mat []) = True\<close> |
+  \<open>all_clause P (mid,Mat ((cid,ms) # cs)) = 
+  (P (cid,ms) \<and> (\<forall> m \<in> set ms. all_clause P m) \<and> all_clause P (mid,Mat cs))\<close>
+
+definition \<open>all_mat P m \<equiv> P m \<and> all_clause (\<lambda> (_,ms). \<forall> m' \<in> set ms. P m') m\<close>
+
+definition \<open>contains_cls c m \<equiv> exi_clause (\<lambda> c'. c = c') m\<close>
+
+definition \<open>contains_mat m1 m2 \<equiv> exi_mat (\<lambda> m'. m' = m1) m2\<close>
+
+definition \<open>id_exists idty m \<equiv> exi_clause (\<lambda> (n,_). n = idty) m \<or> exi_mat (\<lambda> (n,_). n = idty) m\<close>
+
+fun siblings where
+  \<open>siblings c1 c2 (_,Lit _ _) = False\<close> |
+  \<open>siblings c1 c2 (_,Mat cs) = (member c1 cs \<and> member c2 cs)\<close>
+
+abbreviation \<open>
+  alpha_top_level c l m \<equiv> (\<exists> cid' c'. 
+    c \<noteq> (cid',c') \<and> 
+    siblings c (cid',c') m \<and> 
+    (\<exists> m' \<in> set c'. contains_mat l m'))\<close>
+
+definition \<open>extension_clause M P C \<equiv> True\<close>
 
 (*fun beta_clause where
   \<open>beta_clause l [] = []\<close> |
@@ -248,27 +243,28 @@ qed
 inductive CC (\<open>\<turnstile> _ _ _\<close> 0) where 
 Axiom: \<open>\<turnstile> [] _ _\<close> |
 Reduction: \<open>
-  (\<turnstile> C M ((pol,prp) # P)) \<Longrightarrow>
+  (\<turnstile> C M ((lid,pol,prp) # P)) \<Longrightarrow>
   pol \<longleftrightarrow> \<not>pol' \<Longrightarrow>
-  (\<turnstile> ((Lit pol' prp) # C) M ((pol,prp) # P))\<close> |
+  (\<turnstile> ((_,Lit pol' prp) # C) M ((lid,pol,prp) # P))\<close> |
 Permutation: \<open>
   (\<turnstile> C M P) \<Longrightarrow>
   permutation C C' \<Longrightarrow> permutation P P' \<Longrightarrow>
   (\<turnstile> C' M P')\<close> |
 Extention: \<open>
-  (\<turnstile> C' M ((pol,prp) # P)) \<Longrightarrow>
-  exi_clause (\<lambda> (cid,C). C = C') M \<Longrightarrow>
+  (\<turnstile> C' M ((lid,pol,prp) # P)) \<Longrightarrow>
+  contains_cls (cid,C') (0,Mat M) \<Longrightarrow>
+  extension_clause M P (cid,C')  \<Longrightarrow>
   (\<turnstile> C M P) \<Longrightarrow>
-  (\<turnstile> ((Lit pol prp) # C) M P)\<close> |
+  (\<turnstile> ((lid,Lit pol prp) # C) M P)\<close> |
 Decomposition: \<open>
   (\<turnstile> (C' @ C) M P) \<Longrightarrow>
   member (_,C') cs \<Longrightarrow>
-  (\<turnstile> ((Mat cs) # C) M P)\<close>
+  (\<turnstile> ((mid,Mat cs) # C) M P)\<close>
 
 fun CC_mat where 
   \<open>CC_mat (Lit _ _) = False\<close> |
   \<open>CC_mat (Mat []) = False\<close> |
-  \<open>CC_mat (Mat ((cid,c) # m)) = (\<turnstile> c (Mat ((cid,c) # m)) [])\<close>
+  \<open>CC_mat (Mat ((cid,c) # m)) = (\<turnstile> c ((cid,c) # m) [])\<close>
 (*-------------------------*)
 
 (*---Generic Prop Forms----*)
@@ -280,53 +276,68 @@ datatype 'a gen_forms
   | Imp \<open>'a gen_forms\<close> \<open>'a gen_forms\<close>
 
 fun form_to_clauses where
-  \<open>form_to_clauses mx pol (Atm n) = (mx,Lit pol n)\<close> |
+  \<open>form_to_clauses mx pol (Atm n) = (mx + 1,(mx,Lit pol n))\<close> |
   \<open>form_to_clauses mx pol (Neg p) = form_to_clauses mx (\<not>pol) p\<close> |
   \<open>form_to_clauses mx True (Con p1 p2) = (
-    let (nmx,mat1) = form_to_clauses (mx + 1) True p1 in
-    let (nnmx,mat2) = form_to_clauses (nmx + 1) True p2 in
-    (nnmx,Mat [(mx,[mat1]),(nmx,[mat2])]))\<close> |
+    let (nmx,mat1) = form_to_clauses (mx + 3) True p1 in
+    let (nnmx,mat2) = form_to_clauses nmx True p2 in
+    (nnmx,(mx,Mat [(mx + 1,[mat1]),(mx + 2,[mat2])])))\<close> |
   \<open>form_to_clauses mx False (Dis p1 p2) = (
-    let (nmx,mat1) = form_to_clauses (mx + 1) False p1 in
-    let (nnmx,mat2) = form_to_clauses (nmx + 1) False p2 in
-    (nnmx,Mat [(mx,[mat1]),(nmx,[mat2])]))\<close> |
-  \<open>form_to_clauses mx False (Imp p1 p2) = (
-    let (nmx,mat1) = form_to_clauses (mx + 1) True p1 in
-    let (nnmx,mat2) = form_to_clauses (nmx + 1) False p2 in
-    (nnmx,Mat [(mx,[mat1]),(nmx,[mat2])]))\<close> |
-  \<open>form_to_clauses mx False (Con p1 p2) = (
-    let (nmx,mat1) = form_to_clauses (mx + 1) False p1 in
+    let (nmx,mat1) = form_to_clauses (mx + 3) False p1 in
     let (nnmx,mat2) = form_to_clauses nmx False p2 in
-    (nnmx,Mat [(mx,[mat1, mat2])]))\<close> |
+    (nnmx,(mx,Mat [(mx + 1,[mat1]),(mx + 2,[mat2])])))\<close> |
+  \<open>form_to_clauses mx False (Imp p1 p2) = (
+    let (nmx,mat1) = form_to_clauses (mx + 3) True p1 in
+    let (nnmx,mat2) = form_to_clauses nmx False p2 in
+    (nnmx,(mx,Mat [(mx + 1,[mat1]),(mx + 2,[mat2])])))\<close> |
+  \<open>form_to_clauses mx False (Con p1 p2) = (
+    let (nmx,mat1) = form_to_clauses (mx + 2) False p1 in
+    let (nnmx,mat2) = form_to_clauses nmx False p2 in
+    (nnmx,(mx,Mat [(mx + 1,[mat1, mat2])])))\<close> |
   \<open>form_to_clauses mx True (Dis p1 p2) = (
-    let (nmx,mat1) = form_to_clauses (mx + 1) True p1 in
+    let (nmx,mat1) = form_to_clauses (mx + 2) True p1 in
     let (nnmx,mat2) = form_to_clauses nmx True p2 in
-    (nnmx,Mat [(mx,[mat1, mat2])]))\<close> |
+    (nnmx,(mx,Mat [(mx + 1,[mat1, mat2])])))\<close> |
   \<open>form_to_clauses mx True (Imp p1 p2) = (
-    let (nmx,mat1) = form_to_clauses (mx + 1) False p1 in
+    let (nmx,mat1) = form_to_clauses (mx + 2) False p1 in
     let (nnmx,mat2) = form_to_clauses nmx True p2 in
-    (nnmx,Mat [(mx,[mat1, mat2])]))\<close>
+    (nnmx,(mx,Mat [(mx + 1,[mat1, mat2])])))\<close>
+
+fun collaps_mat and collaps_clause where
+  \<open>collaps_mat (mid,Lit pol prp) = (mid,Lit pol prp)\<close> |
+  \<open>collaps_mat (mid,Mat [(_,[(mid2,Mat cs)])]) = collaps_mat (mid,Mat cs)\<close> |
+  \<open>collaps_mat (mid,Mat cs) = (mid,Mat (map collaps_clause cs))\<close> | 
+  \<open>collaps_clause (cid,[(mid,Mat [c])]) = collaps_clause c\<close> |
+  \<open>collaps_clause (cid,ms) = (cid, (map collaps_mat ms))\<close>
 
 (*prove idunique here*)
 
 value \<open>form_to_clauses 0 False (Imp (Con (Imp (Atm 0) (Atm 1)) (Atm 0)) (Atm 1))\<close>
+value \<open>collaps_mat 
+(0,
+  Mat [(1, [(3, Mat [(4, [(6, Mat [(7, [(8, Lit False 0), (9, Lit True 1)])])]),
+                     (5, [(10, Lit True 0)])])]),
+       (2, [(11, Lit False 1)])])\<close>
 
 lemma \<open>CC_mat (
   Mat [
-    (0, [Mat [
-      (1, [Mat [(2, [Lit False 0, Lit True 1])]]), 
-      (3, [Lit True 0])]]), 
-    (4, [Lit False 1])])\<close> (is \<open>CC_mat ?M\<close>) 
+    (0, [(5,Mat [
+      (1, [(6,Mat [(2, [(7,Lit False 0), (8,Lit True 1)])])]), 
+      (3, [(9,Lit True 0)])])]), 
+    (4, [(10,Lit False 1)])])\<close> (is \<open>CC_mat (Mat ?M)\<close>)
 proof -
   have ?thesis if \<open>(\<turnstile> 
-    [Mat [(1, [Mat [(2, [Lit False 0, Lit True 1])]]), (3, [Lit True 0])]] ?M [])\<close> 
+    [(5,Mat [
+      (1, [(6,Mat [(2, [(7,Lit False 0), (8,Lit True 1)])])]), 
+      (3, [(9,Lit True 0)])])] ?M [])\<close> 
     using that by simp
   then have ?thesis if \<open>(\<turnstile> 
-    [Lit True 0] ?M [])\<close> 
+    [(9,Lit True 0)] ?M [])\<close> 
     using that Decomposition by simp
-  then have ?thesis if \<open>(\<turnstile> 
-    [Lit False 1] ?M [(True, 0)])\<close> 
-    using that Extention Axiom by simp
+  moreover have \<open>alpha_related ?M (4,[(10,Lit False 1)]) (9,Lit True 0)\<close>sorry
+  ultimately have ?thesis if \<open>(\<turnstile> 
+    [(10,Lit False 1)] ?M [(9,True, 0)])\<close> 
+    using that Extention Axiom sorry
   then have ?thesis if \<open>(\<turnstile> 
     [Lit False 0, Lit True 1] ?M [(False,1),(True, 0)])\<close> 
     using that Extention Axiom by simp
@@ -349,14 +360,11 @@ fun is_path where
   \<open>is_path p (Mat cs) = (\<forall> (_,ms) \<in> set cs. \<exists> m \<in> set ms. is_path p m)\<close>
 
 definition \<open>
-  mat_valid m \<equiv> \<forall> p. is_path p m \<longrightarrow> (\<exists> prop. member (True,prop) p \<and> member (False,prop) p)\<close>
-
-definition \<open>
   cc_valid c m p \<equiv> 
     \<forall> p'. is_path p' m \<longrightarrow> (\<exists> m' \<in> set c. is_path p m') \<longrightarrow> set p \<subseteq> set p' \<longrightarrow> 
       (\<exists> prop. member (True,prop) p \<and> member (False,prop) p)\<close>
 
-theorem path_soundness: \<open>(\<turnstile> c m p) \<Longrightarrow> cc_valid c m p\<close>
+theorem cc_soundness: \<open>(\<turnstile> c m p) \<Longrightarrow> cc_valid c m p\<close>
 proof (induct rule: CC.induct)
   case (Axiom uu uv)
   then show ?case 
@@ -373,6 +381,66 @@ next
 next
   case (Decomposition C' C M P uw cs)
   then show ?case sorry
+qed
+
+
+definition \<open>
+  mat_valid m \<equiv> \<forall> p. is_path p m \<longrightarrow> (\<exists> prop. member (True,prop) p \<and> member (False,prop) p)\<close>
+
+theorem mat_soundness: \<open>cc_valid c (Mat ((cid,c) # m)) [] \<Longrightarrow> mat_valid (Mat ((cid,c) # m))\<close> sorry
+(*-------------------------*)
+
+(*---Semantics-------------*)
+primrec form_semantics where
+  \<open>form_semantics i (Atm a) = i a\<close> |
+  \<open>form_semantics i (Neg p) = (\<not>form_semantics i p)\<close> |
+  \<open>form_semantics i (Con p1 p2) = (form_semantics i p1 \<and> form_semantics i p2)\<close> |
+  \<open>form_semantics i (Dis p1 p2) = (form_semantics i p1 \<or> form_semantics i p2)\<close> |
+  \<open>form_semantics i (Imp p1 p2) = (form_semantics i p1 \<longrightarrow> form_semantics i p2)\<close>
+
+fun mat_semantics where 
+  \<open>mat_semantics i (Lit pol prp) = (i prp \<longleftrightarrow> \<not>pol)\<close> |
+  \<open>mat_semantics i (Mat cs) = (\<exists> (c,ms) \<in> set cs. \<forall> m \<in> set ms. mat_semantics i m)\<close>
+
+lemma path_to_semantics_soundness: \<open>
+  mat_valid m \<Longrightarrow> \<forall> i. mat_semantics i m\<close> sorry
+
+lemma mat_to_form: \<open>
+  form_to_clauses mx pol p = (n,m) \<Longrightarrow> 
+  mat_semantics i m \<Longrightarrow> 
+  (\<not>pol \<longleftrightarrow> form_semantics i p)\<close> 
+proof (induct p arbitrary: mx pol n m)
+  case (Atm a)
+  then show ?case by auto
+next
+  case (Neg p)
+  then show ?case 
+    by auto
+next
+  case (Con p1 p2)
+  then show ?case sorry
+next
+  case (Dis p1 p2)
+  then show ?case sorry
+next
+  case (Imp p1 p2)
+  then show ?case sorry
+qed
+
+theorem form_soundness: \<open>
+  form_to_clauses 0 False p = (n,Mat ((cid,c) # cs)) \<Longrightarrow>
+  (\<turnstile> c (Mat ((cid,c) # cs)) []) \<Longrightarrow>
+  \<forall> i. form_semantics i p\<close> (is \<open>?translation \<Longrightarrow> ?proof \<Longrightarrow> ?valid\<close>)
+proof-
+  let ?m = \<open>Mat ((cid,c) # cs)\<close>
+  assume t:?translation
+  assume ?proof
+  then have \<open>mat_valid ?m\<close>
+    by (simp add: cc_soundness mat_soundness)
+  then have \<open>\<forall> i. mat_semantics i ?m\<close>
+    using path_to_semantics_soundness by blast
+  then show ?valid 
+    using mat_to_form t by blast
 qed
 
 end
