@@ -239,13 +239,6 @@ fun semanticsClsElem semanticsMatElem where
   \<open>semanticsMatElem i (Clause (mat # cls)) = 
     (semanticsClsElem i mat \<and> semanticsMatElem i (Clause cls))\<close>  
 
-abbreviation \<open>
-  semanticsValidMat path mat \<equiv> 
-    \<forall> i. (\<exists> (pol,prp) \<in> set path. evalLit i pol prp) \<or> semanticsClsElem i mat\<close>
-abbreviation \<open>
-  semanticsValidCls path cls \<equiv> 
-    \<forall> i. (\<exists> (pol,prp) \<in> set path. evalLit i pol prp) \<or> semanticsMatElem i cls\<close>
-
 fun pathClsElem pathMatElem where
   \<open>pathClsElem path (Lit pol prp) = member (pol,prp) path\<close> | 
   \<open>pathClsElem path (Matrix []) = True\<close> | 
@@ -263,31 +256,6 @@ lemma suffixPath:
   \<open>pathClsElem path mat \<Longrightarrow> path' = (path @ suffix) \<Longrightarrow> pathClsElem path' mat\<close>
   \<open>pathMatElem path cls \<Longrightarrow> path' = (path @ suffix) \<Longrightarrow> pathMatElem path' cls\<close>
   by (induct mat and cls rule: pathClsElem_pathMatElem.induct) auto+
-
-abbreviation \<open>pathValidMat path mat \<equiv> 
-  \<forall> extension. (
-    pathClsElem extension mat \<longrightarrow> 
-      (\<exists> prp. member (True, prp) (extension @ path) \<and> member (False,prp) (extension @ path)))\<close>
-abbreviation \<open>pathValidCls path cls \<equiv> 
-  \<forall> extension. (
-    pathMatElem extension cls \<longrightarrow> 
-      (\<exists> prp. member (True, prp) (extension @ path) \<and> member (False,prp) (extension @ path)))\<close>
-
-lemma prefixPathValid: 
-  \<open>pathValidMat path mat \<Longrightarrow> path' = prefix @ path \<Longrightarrow> pathValidMat path' mat\<close>
-  \<open>pathValidCls path cls \<Longrightarrow> path' = prefix @ path \<Longrightarrow> pathValidCls path' cls\<close>
-  by (induct mat and cls rule: pathClsElem_pathMatElem.induct) auto
-
-lemma suffixPathValid: 
-  \<open>pathValidMat path mat \<Longrightarrow> path' = path @ suffix \<Longrightarrow> pathValidMat path' mat\<close>
-  \<open>pathValidCls path cls \<Longrightarrow> path' = path @ suffix \<Longrightarrow> pathValidCls path' cls\<close>
-  by (induct mat and cls rule: pathClsElem_pathMatElem.induct) auto
-
-lemma extend_from_cls_to_mat: \<open>
-  pathValidMat path (Matrix (cls # mat)) \<Longrightarrow> pathMatElem clsPath cls \<Longrightarrow> 
-    pathValidMat (clsPath @ path) (Matrix mat)\<close> (is \<open>?validClsMat \<Longrightarrow> ?clsPath \<Longrightarrow> ?validMat\<close>)
-  by (metis append.assoc pathClsElem.simps(3) prefixPath(2) suffixPath(1))
-
 
 (* Quantifier semantics:*)
 fun semanticsMatQ semanticsClsQ where
@@ -352,49 +320,10 @@ next
     by (induct x) auto
 qed simp
 
-(*
-lemma \<open>
-  \<exists> path. pathClsElem path mat \<and> (\<forall> (pol,prp) \<in> set path. \<not>evalLit i pol prp) \<Longrightarrow>
-  \<exists> i. \<not>semanticsClsElem i mat\<close> sorry*)
-(*
-lemma not_semantic_validity_implies_not_path_validity_mat:\<open>
-  \<not>semanticsClsElem i mat \<Longrightarrow>
-  \<exists> path. pathClsElem path mat \<and> (\<forall> (pol,prp) \<in> set path. \<not>evalLit i pol prp)\<close>
-proof (rule ccontr)
-  assume \<open>\<not>semanticsClsElem i mat\<close>
-  assume \<open>\<not> (\<exists> path. pathClsElem path mat \<and> (\<forall> (pol,prp) \<in> set path. \<not>evalLit i pol prp))\<close>
-  show False sorry
-qed
-
-lemma not_semantic_validity_implies_not_path_validity_cls:\<open>
-  \<exists> i. \<not>semanticsMatElem i cls \<Longrightarrow>
-  \<exists> path. pathMatElem path cls \<and> (\<forall> (pol,prp) \<in> set path. \<not>evalLit i pol prp)\<close>
-proof (rule ccontr)
-  assume \<open>\<exists> i. \<not>semanticsMatElem i cls\<close>
-  assume \<open>\<not> (\<exists> path. pathMatElem path cls \<and> (\<forall> (pol,prp) \<in> set path. \<not>evalLit i pol prp))\<close>
-  show False sorry
-qed*)
-
 lemma tbd:\<open>
   \<exists> prp. member (True, prp) path \<and> member (False,prp) path \<Longrightarrow>
     \<forall> i. \<exists> (pol,prp) \<in> set path. evalLit i pol prp\<close>
   by (metis (no_types, lifting) case_prodI member_iff)
-
-(*
-lemma path_validity_implies_semantic_validity_mat: 
-  \<open>pathValidMat path (mat :: 'a clause_elem) \<Longrightarrow> semanticsValidMat path mat\<close>
-proof (rule ccontr)
-  assume \<open>pathValidMat path (mat :: 'a clause_elem)\<close>
-  assume \<open>\<not>semanticsValidMat path mat\<close>
-  then have \<open>\<not>(\<exists> i path. pathClsElem path mat \<and> (\<forall> (pol,prp) \<in> set path. \<not>evalLit i pol prp))\<close> sorry
-  show False sorry
-qed
-
-lemma path_validity_implies_semantic_validity_cls: 
-  \<open>pathValidCls path (cls :: 'a matrix_elem) \<Longrightarrow> semanticsValidCls path cls\<close>
-proof (rule ccontr)
-  show False sorry
-qed*)
 
 
 lemma p1:\<open>
@@ -422,39 +351,6 @@ lemma \<open>
   (\<forall> path. pathMatElem path mat \<longrightarrow> (\<exists> prp. (False,prp) \<in> set path \<and> (True,prp) \<in> set path)) \<longleftrightarrow>
     (\<forall> i. semanticsMatElem i mat)\<close> 
   by (meson p1 p3)
-
-theorem path_validity_implies_semantic_validity: 
-  \<open>pathValidMat path (mat :: 'a clause_elem) \<Longrightarrow> semanticsValidMat path mat\<close>
-  \<open>\<forall> path. pathValidCls path (cls :: 'a matrix_elem) \<longrightarrow> semanticsValidCls path cls\<close>
-proof (induction mat and cls arbitrary: path rule: pathClsElem_pathMatElem.induct)
-  case (1 path pol prp)
-  have \<open>\<exists> prp'. member (True, prp') ((pol,prp) # path) \<and> member (False,prp') ((pol,prp) # path)\<close>
-    by (metis "1" append.left_neutral append_Cons nanoCoP2.member.simps(2) pathClsElem.simps(1))
-  then obtain prp' where prp'_def:
-    \<open>member (True, prp') ((pol,prp) # path) \<and> member (False,prp') ((pol,prp) # path)\<close> by blast
-  moreover have \<open>\<forall> i. evalLit i True prp' \<or> evalLit i False prp'\<close> 
-    by simp
-  ultimately show ?case 
-    by (metis (no_types, lifting) Pair_inject case_prodI member_iff 
-        semanticsClsElem.simps(1) set_ConsD)
-next
-  case (2 path)
-  then show ?case
-    by (metis (no_types, lifting) append_Nil member_iff old.prod.case pathClsElem.simps(2))
-next
-  case (3 x cls mat path)
-  moreover have \<open>\<forall> path'. pathClsElem path' (Matrix mat) \<longrightarrow> pathValidCls (path' @ path) cls\<close> sorry
-  moreover have \<open>\<forall> path'. pathMatElem path' cls \<longrightarrow> pathValidMat (path' @ path) (Matrix mat)\<close> sorry
-  ultimately show ?case sorry
-next
-  case (4 path)
-  then show ?case
-    by simp
-next
-  case (5 path mat cls)
-  then show ?case 
-    by (meson pathMatElem.simps(2) semanticsMatElem.simps(2))
-qed 
 
 
 lemma permPath: 
@@ -490,7 +386,8 @@ next
 qed auto
 
 theorem path_soundness: 
-  \<open>nanoCoP mat path \<Longrightarrow> pathValidMat path (Matrix mat)\<close>
+  \<open>nanoCoP mat path \<Longrightarrow> \<forall> path'. ext path' path \<longrightarrow> pathClsElem path' (Matrix mat) \<longrightarrow> 
+    (\<exists> prp. (False,prp) \<in> set path' \<and> (True,prp) \<in> set path')\<close>
 proof (induct rule: nanoCoP.induct)
   case (Axiom Mat Path)
   then show ?case
@@ -506,35 +403,24 @@ next
 next
   case (ReductionLit pol prp Path Cls Mat)
   then show ?case 
-    by (smt (verit, ccfv_threshold) pathClsElem.simps(1) pathClsElem.simps(3) pathMatElem.simps(2)
-        prefixPath(1) suffixPath(1))
+    by (smt (verit, best) ext_iff member_iff pathClsElem.simps(1) pathClsElem.simps(3) 
+        pathMatElem.simps(2))
 next
   case (ReductionMat mat Path Cls Mat)
   then show ?case 
     by auto
 next
   case (ExtensionLit Mat pol prp Path Cls)
-  then show ?case sorry
+  then show ?case
+    by (metis ext.simps(2) pathClsElem.simps(1) pathClsElem.simps(3) pathMatElem.simps(2))
 next
   case (ExtensionMat mat Mat Path Cls)
   then show ?case
     by auto
 qed
 
-lemma empty_path_validity: \<open>semanticsValidMat [] mat \<Longrightarrow> (\<forall> i. semanticsClsElem i mat)\<close> 
-  by simp
-
 theorem soundness: \<open>nanoCoP mat [] \<Longrightarrow> (\<forall> i. semanticsClsElem i (Matrix mat))\<close> 
-proof
-  fix i
-  assume \<open>nanoCoP mat []\<close>
-  then have \<open>pathValidMat [] (Matrix mat)\<close> 
-    using path_soundness by fast
-  then have \<open>semanticsValidMat [] (Matrix mat)\<close> 
-    using path_validity_implies_semantic_validity by blast
-  then show \<open>semanticsClsElem i (Matrix mat)\<close>
-    using empty_path_validity by blast
-qed
+  by (meson ext.simps(1) p4 path_soundness)
 
 theorem main: \<open>nanoCoP mat [] \<longleftrightarrow> (\<forall> i. semanticsMat i mat)\<close> sorry
 
