@@ -1,4 +1,4 @@
-theory nanoCoP2 imports Main
+theory nanoCoP3 imports Main
 begin
 
 primrec member where
@@ -17,10 +17,11 @@ lemma common_iff [iff]: \<open>common A B \<longleftrightarrow> set A \<inter> s
 
 
 datatype ('a) clause_elem
-  = Lit "bool" 'a
+  = LitM "bool" 'a
   | Matrix "'a matrix_elem list"
 and ('a) matrix_elem
-  = Clause \<open>'a clause_elem list\<close>
+  = LitC "bool" 'a
+  | Clause \<open>'a clause_elem list\<close>
 
 fun ext where
   \<open>ext ys [] = True\<close> |
@@ -94,24 +95,38 @@ inductive nanoCoP where
 I think this works, though it requires much more careful choices than original
 Will have to think hard about copy-clauses for FOL*)
 inductive nanoCoP where
-  Axiom: \<open>nanoCoP (Clause [] # Mat) Path\<close> |
-  PermMat: \<open>nanoCoP Mat2 Path\<close> if \<open>nanoCoP Mat1 Path\<close> and \<open>perm Mat1 Mat2\<close> |
-  PermCls: \<open>nanoCoP (Clause Cls2 # Mat) Path\<close> if 
-    \<open>perm Cls1 Cls2\<close> and \<open>nanoCoP (Clause Cls1 # Mat) Path\<close> |
-  ReductionLit: \<open>nanoCoP (Clause (Lit pol prp # Cls) # Mat) Path\<close> if
-    \<open>member (\<not>pol, prp) Path\<close> and \<open>nanoCoP (Clause Cls # Mat) Path\<close> |
-  ReductionMat: \<open>
-    nanoCoP mat Path \<Longrightarrow>
-    nanoCoP (Clause Cls # Mat) Path \<Longrightarrow>
-      nanoCoP (Clause (Matrix mat # Cls) # Mat) Path\<close> |
-  ExtensionLit: \<open>
-    nanoCoP Mat ((pol, prp) # Path) \<Longrightarrow> 
-    nanoCoP (Clause Cls # Mat) Path \<Longrightarrow>
-      nanoCoP (Clause (Lit pol prp # Cls) # Mat) Path\<close> |
-  ExtensionMat: \<open>
-    nanoCoP (Clause [Matrix mat] # Mat) Path \<Longrightarrow> 
-    nanoCoP (Clause Cls # Mat) Path \<Longrightarrow>
-      nanoCoP (Clause (Matrix mat # Cls) # Mat) Path\<close>
+  Axiom: 
+    \<open>nanoCoP (Clause [] # Mat) Path\<close> |
+  PermMat: 
+    \<open>nanoCoP Mat2 Path\<close> if 
+    \<open>perm Mat1 Mat2\<close> and
+    \<open>nanoCoP Mat1 Path\<close> |
+  PermCls: 
+    \<open>nanoCoP (Clause Cls2 # Mat) Path\<close> if 
+    \<open>perm Cls1 Cls2\<close> and 
+    \<open>nanoCoP (Clause Cls1 # Mat) Path\<close> |
+  ReductionLit: 
+    \<open>nanoCoP (Clause (LitM pol prp # Cls) # Mat) Path\<close> if
+    \<open>member (\<not>pol, prp) Path\<close> and 
+    \<open>nanoCoP (Clause Cls # Mat) Path\<close> |
+  ReductionLitC: 
+    \<open>nanoCoP (LitC pol prp # Mat) Path\<close> if 
+    \<open>member (\<not>pol, prp) Path\<close> |
+  ReductionMat: 
+    \<open>nanoCoP (Clause (Matrix mat # Cls) # Mat) Path\<close> if
+    \<open>nanoCoP mat Path\<close> and
+    \<open>nanoCoP (Clause Cls # Mat) Path\<close> |
+  ExtensionLit: 
+    \<open>nanoCoP (Clause (LitM pol prp # Cls) # Mat) Path\<close> if
+    \<open>nanoCoP Mat ((pol, prp) # Path)\<close> and
+    \<open>nanoCoP (Clause Cls # Mat) Path\<close> |
+  ExtensionLitC: 
+    \<open>nanoCoP (LitC pol prp # Mat) Path\<close> if
+    \<open>nanoCoP Mat ((pol, prp) # Path)\<close> |
+  ExtensionMat: 
+    \<open>nanoCoP (Clause (Matrix mat # Cls) # Mat) Path\<close> if
+    \<open>nanoCoP (Clause [Matrix mat] # Mat) Path\<close> and
+    \<open>nanoCoP (Clause Cls # Mat) Path\<close>
 
 (*Example proofs*)
 context begin
@@ -121,95 +136,95 @@ private datatype props = P | Q | R
 Part of this is because of the replacement with beta-clauses, which is a permissible rule*)
 private lemma \<open>nanoCoP 
   [
-    Clause [Lit False P],
+    Clause [LitM False P],
     Clause [
-      Matrix [Clause [Lit True P],Clause [Lit False Q]],
-      Matrix [Clause [Lit True Q],Clause [Lit False Q,Lit True R],Clause [Lit False R]]
+      Matrix [Clause [LitM True P],Clause [LitM False Q]],
+      Matrix [Clause [LitM True Q],Clause [LitM False Q,LitM True R],Clause [LitM False R]]
     ],
-    Clause [Lit True Q]
+    Clause [LitM True Q]
   ] 
   []\<close>
 proof-
   from ExtensionLit have ?thesis if \<open>nanoCoP 
     [
       Clause [
-        Matrix [Clause [Lit True P],Clause [Lit False Q]],
-        Matrix [Clause [Lit True Q],Clause [Lit False Q,Lit True R],Clause [Lit False R]]
+        Matrix [Clause [LitM True P],Clause [LitM False Q]],
+        Matrix [Clause [LitM True Q],Clause [LitM False Q,LitM True R],Clause [LitM False R]]
       ],
-      Clause [Lit True Q]
+      Clause [LitM True Q]
     ] 
   [(False, P)]\<close> and \<open>nanoCoP 
     [
       Clause [],
       Clause [
-        Matrix [Clause [Lit True P],Clause [Lit False Q]],
-        Matrix [Clause [Lit True Q],Clause [Lit False Q,Lit True R],Clause [Lit False R]]
+        Matrix [Clause [LitM True P],Clause [LitM False Q]],
+        Matrix [Clause [LitM True Q],Clause [LitM False Q,LitM True R],Clause [LitM False R]]
       ],
-      Clause [Lit True Q]
+      Clause [LitM True Q]
     ] 
   []\<close> using that by fast
   with Axiom have ?thesis if \<open>nanoCoP 
     [
       Clause [
-        Matrix [Clause [Lit True P],Clause [Lit False Q]],
-        Matrix [Clause [Lit True Q],Clause [Lit False Q,Lit True R],Clause [Lit False R]]
+        Matrix [Clause [LitM True P],Clause [LitM False Q]],
+        Matrix [Clause [LitM True Q],Clause [LitM False Q,LitM True R],Clause [LitM False R]]
       ],
-      Clause [Lit True Q]
+      Clause [LitM True Q]
     ] 
   [(False, P)]\<close> using that by fast
   with ReductionMat have ?thesis if \<open>nanoCoP
-    [Clause [Lit True P],Clause [Lit False Q]]
+    [Clause [LitM True P],Clause [LitM False Q]]
     [(False, P)]\<close> and \<open>nanoCoP
     [
       Clause [
-        Matrix [Clause [Lit True Q],Clause [Lit False Q,Lit True R],Clause [Lit False R]]
+        Matrix [Clause [LitM True Q],Clause [LitM False Q,LitM True R],Clause [LitM False R]]
       ],
-      Clause [Lit True Q]
+      Clause [LitM True Q]
     ] 
   [(False, P)]\<close> using that by fast
   with ReductionMat have ?thesis if \<open>nanoCoP
-    [Clause [Lit True P],Clause [Lit False Q]]
+    [Clause [LitM True P],Clause [LitM False Q]]
     [(False, P)]\<close> and \<open>nanoCoP
-  [Clause [Lit True Q],Clause [Lit False Q,Lit True R],Clause [Lit False R]]
+  [Clause [LitM True Q],Clause [LitM False Q,LitM True R],Clause [LitM False R]]
     [(False, P)]\<close> and \<open>nanoCoP
     [
       Clause [],
-      Clause [Lit True Q]]
+      Clause [LitM True Q]]
   [(False, P)]\<close> using that by fast 
   with ReductionLit have ?thesis if \<open>nanoCoP
     [
       Clause [],
-      Clause [Lit False Q]]
+      Clause [LitM False Q]]
     [(False, P)]\<close> and \<open>nanoCoP
-  [Clause [Lit True Q],Clause [Lit False Q,Lit True R],Clause [Lit False R]]
+  [Clause [LitM True Q],Clause [LitM False Q,LitM True R],Clause [LitM False R]]
     [(False, P)]\<close> and \<open>nanoCoP
     [
       Clause [],
-      Clause [Lit True Q]]
+      Clause [LitM True Q]]
   [(False, P)]\<close> using that by force
   with Axiom have ?thesis if \<open>nanoCoP
-    [Clause [Lit True Q],Clause [Lit False Q,Lit True R],Clause [Lit False R]]
+    [Clause [LitM True Q],Clause [LitM False Q,LitM True R],Clause [LitM False R]]
   [(False, P)]\<close> using that by fast
   with ExtensionLit have ?thesis if \<open>nanoCoP
-    [Clause [Lit False Q,Lit True R],Clause [Lit False R]]
+    [Clause [LitM False Q,LitM True R],Clause [LitM False R]]
   [(True, Q),(False, P)]\<close> and \<open>nanoCoP
-    [Clause [],Clause [Lit False Q,Lit True R],Clause [Lit False R]]
+    [Clause [],Clause [LitM False Q,LitM True R],Clause [LitM False R]]
   [(False, P)]\<close> using that by fast
   with Axiom have ?thesis if \<open>nanoCoP
-    [Clause [Lit False Q,Lit True R],Clause [Lit False R]]
+    [Clause [LitM False Q,LitM True R],Clause [LitM False R]]
   [(True, Q),(False, P)]\<close> using that by fast
   with ReductionLit have ?thesis if \<open>nanoCoP
-    [Clause [Lit True R],Clause [Lit False R]]
+    [Clause [LitM True R],Clause [LitM False R]]
   [(True, Q),(False, P)]\<close> using that member.simps(2) by (metis (full_types))
   with ExtensionLit have ?thesis if \<open>nanoCoP
-    [Clause [Lit False R]]
+    [Clause [LitM False R]]
   [(True, R),(True, Q),(False, P)]\<close> and \<open>nanoCoP
-    [Clause [],Clause [Lit False R]]
+    [Clause [],Clause [LitM False R]]
   [(True, Q),(False, P)]\<close> using that by fastforce
   with ReductionLit have ?thesis if \<open>nanoCoP
     [Clause []]
   [(True, R),(True, Q),(False, P)]\<close> and \<open>nanoCoP
-    [Clause [],Clause [Lit False R]]
+    [Clause [],Clause [LitM False R]]
   [(True, Q), (False, P)]\<close> using that member.simps(2) by (metis (full_types))
   with Axiom show ?thesis by fast
 qed
@@ -217,12 +232,12 @@ qed
 (*could also be done with sledgehammer:*)
 private lemma \<open>nanoCoP 
   [
-    Clause [Lit False P],
+    Clause [LitM False P],
     Clause [
-      Matrix [Clause [Lit True P],Clause [Lit False Q]],
-      Matrix [Clause [Lit True Q],Clause [Lit False Q,Lit True R],Clause [Lit False R]]
+      Matrix [Clause [LitM True P],Clause [LitM False Q]],
+      Matrix [Clause [LitM True Q],Clause [LitM False Q,LitM True R],Clause [LitM False R]]
     ],
-    Clause [Lit True Q]
+    Clause [LitM True Q]
   ] 
   []\<close> 
   by (simp add: Axiom ExtensionLit ReductionLit ReductionMat)
@@ -230,42 +245,45 @@ end
 
 abbreviation \<open>evalLit i pol prp \<equiv> ((pol \<and> \<not>i prp) \<or> (\<not>pol \<and> i prp))\<close>
 
-fun semanticsClsElem semanticsMatElem where
-  \<open>semanticsClsElem i (Lit pol prp) = evalLit i pol prp\<close> | 
-  \<open>semanticsClsElem i (Matrix []) = False\<close> |
-  \<open>semanticsClsElem i (Matrix (cls # mat)) = 
-    (semanticsMatElem i cls \<or> semanticsClsElem i (Matrix mat))\<close> |
-  \<open>semanticsMatElem i (Clause []) = True\<close> |
-  \<open>semanticsMatElem i (Clause (mat # cls)) = 
-    (semanticsClsElem i mat \<and> semanticsMatElem i (Clause cls))\<close>  
+fun semanticsMat semanticsCls where
+  \<open>semanticsMat i (LitM pol prp) = evalLit i pol prp\<close> |
+  \<open>semanticsMat i (Matrix []) = False\<close> |
+  \<open>semanticsMat i (Matrix (cls # mat)) = 
+    (semanticsCls i cls \<or> semanticsMat i (Matrix mat))\<close> |
+  \<open>semanticsCls i (LitC pol prp) = evalLit i pol prp\<close> | 
+  \<open>semanticsCls i (Clause []) = True\<close> |
+  \<open>semanticsCls i (Clause (mat # cls)) = 
+    (semanticsMat i mat \<and> semanticsCls i (Clause cls))\<close>  
 
-fun pathClsElem pathMatElem where
-  \<open>pathClsElem path (Lit pol prp) = member (pol,prp) path\<close> | 
-  \<open>pathClsElem path (Matrix []) = True\<close> | 
-  \<open>pathClsElem path (Matrix (cls # mat)) = (pathMatElem path cls \<and> pathClsElem path (Matrix mat))\<close> | 
-  \<open>pathMatElem path (Clause []) = False\<close> |
-  \<open>pathMatElem path (Clause (mat # cls)) = (pathClsElem path mat \<or> pathMatElem path (Clause cls))\<close> 
+fun pathMat pathCls where
+  \<open>pathMat path (LitM pol prp) = member (pol,prp) path\<close> | 
+  \<open>pathMat path (Matrix []) = True\<close> | 
+  \<open>pathMat path (Matrix (cls # mat)) = (pathCls path cls \<and> pathMat path (Matrix mat))\<close> | 
+  \<open>pathCls path (LitC pol prp) = member (pol,prp) path\<close> | 
+  \<open>pathCls path (Clause []) = False\<close> |
+  \<open>pathCls path (Clause (mat # cls)) = (pathMat path mat \<or> pathCls path (Clause cls))\<close> 
 
 (*Weird equality thing needed to get induction correct*)
 lemma prefixPath: 
-  \<open>pathClsElem path mat \<Longrightarrow> path' = (prefix @ path) \<Longrightarrow> pathClsElem path' mat\<close>
-  \<open>pathMatElem path cls \<Longrightarrow> path' = (prefix @ path) \<Longrightarrow> pathMatElem path' cls\<close>
-  by (induct mat and cls rule: pathClsElem_pathMatElem.induct) auto
+  \<open>pathMat path mat \<Longrightarrow> path' = (prefix @ path) \<Longrightarrow> pathMat path' mat\<close>
+  \<open>pathCls path cls \<Longrightarrow> path' = (prefix @ path) \<Longrightarrow> pathCls path' cls\<close>
+  by (induct mat and cls rule: pathMat_pathCls.induct) auto
 
 lemma suffixPath: 
-  \<open>pathClsElem path mat \<Longrightarrow> path' = (path @ suffix) \<Longrightarrow> pathClsElem path' mat\<close>
-  \<open>pathMatElem path cls \<Longrightarrow> path' = (path @ suffix) \<Longrightarrow> pathMatElem path' cls\<close>
-  by (induct mat and cls rule: pathClsElem_pathMatElem.induct) auto+
+  \<open>pathMat path mat \<Longrightarrow> path' = (path @ suffix) \<Longrightarrow> pathMat path' mat\<close>
+  \<open>pathCls path cls \<Longrightarrow> path' = (path @ suffix) \<Longrightarrow> pathCls path' cls\<close>
+  by (induct mat and cls rule: pathMat_pathCls.induct) auto+
 
 (* Quantifier semantics:*)
 fun semanticsMatQ semanticsClsQ where
-  \<open>semanticsMatQ i (Lit pol prp) = evalLit i pol prp\<close> |
+  \<open>semanticsMatQ i (LitM pol prp) = evalLit i pol prp\<close> |
   \<open>semanticsMatQ i (Matrix mat) = (\<exists> cls \<in> set mat. semanticsClsQ i cls)\<close> |
+  \<open>semanticsClsQ i (LitC pol prp) = evalLit i pol prp\<close> |
   \<open>semanticsClsQ i (Clause cls) = (\<forall> cls_elem \<in> set cls. semanticsMatQ i cls_elem)\<close> 
 
 lemma semantics_implies_semanticsQ:
-  \<open>semanticsClsElem i mat \<Longrightarrow> semanticsMatQ i mat\<close>
-  \<open>semanticsMatElem i cls \<Longrightarrow> semanticsClsQ i cls\<close>
+  \<open>semanticsMat i mat \<Longrightarrow> semanticsMatQ i mat\<close>
+  \<open>semanticsCls i cls \<Longrightarrow> semanticsClsQ i cls\<close>
 proof (induct mat and cls)
   case (Matrix x)
   then show ?case 
@@ -274,11 +292,11 @@ next
   case (Clause x)
   then show ?case 
     by (induct x) auto
-qed simp
+qed simp_all
 
 lemma semanticsQ_implies_semantics:
-  \<open>semanticsMatQ i mat \<Longrightarrow> semanticsClsElem i mat\<close>
-  \<open>semanticsClsQ i cls \<Longrightarrow> semanticsMatElem i cls\<close>
+  \<open>semanticsMatQ i mat \<Longrightarrow> semanticsMat i mat\<close>
+  \<open>semanticsClsQ i cls \<Longrightarrow> semanticsCls i cls\<close>
 proof (induct mat and cls)
   case (Matrix x)
   then show ?case 
@@ -287,16 +305,17 @@ next
   case (Clause x)
   then show ?case 
     by (induct x) auto
-qed simp
+qed simp_all
 
 fun pathMatQ pathClsQ where
-  \<open>pathMatQ path (Lit pol prp) = member (pol, prp) path\<close> | 
+  \<open>pathMatQ path (LitM pol prp) = member (pol, prp) path\<close> | 
   \<open>pathMatQ path (Matrix mat) = (\<forall> cls \<in> set mat. pathClsQ path cls)\<close> | 
+  \<open>pathClsQ path (LitC pol prp) = member (pol, prp) path\<close> | 
   \<open>pathClsQ path (Clause cls) = (\<exists> cls_elem \<in> set cls. pathMatQ path cls_elem)\<close> 
 
 lemma path_implies_pathQ:
-  \<open>pathClsElem path mat \<Longrightarrow> pathMatQ path mat\<close>
-  \<open>pathMatElem path cls \<Longrightarrow> pathClsQ path cls\<close>
+  \<open>pathMat path mat \<Longrightarrow> pathMatQ path mat\<close>
+  \<open>pathCls path cls \<Longrightarrow> pathClsQ path cls\<close>
 proof (induct mat and cls)
   case (Matrix x)
   then show ?case 
@@ -305,11 +324,11 @@ next
   case (Clause x)
   then show ?case 
     by (induct x) auto
-qed simp
+qed simp_all
 
 lemma pathQ_implies_path:
-  \<open>pathMatQ path mat \<Longrightarrow> pathClsElem path mat\<close>
-  \<open>pathClsQ path cls \<Longrightarrow> pathMatElem path cls\<close>
+  \<open>pathMatQ path mat \<Longrightarrow> pathMat path mat\<close>
+  \<open>pathClsQ path cls \<Longrightarrow> pathCls path cls\<close>
 proof (induct mat and cls)
   case (Matrix x)
   then show ?case 
@@ -318,7 +337,7 @@ next
   case (Clause x)
   then show ?case 
     by (induct x) auto
-qed simp
+qed simp_all
 
 lemma tbd:\<open>
   \<exists> prp. member (True, prp) path \<and> member (False,prp) path \<Longrightarrow>
@@ -327,12 +346,12 @@ lemma tbd:\<open>
 
 (*
 lemma p1:\<open>
-  pathMatElem path cls \<Longrightarrow> \<not>(\<exists> prp. (False,prp) \<in> set path \<and> (True, prp) \<in> set path) \<Longrightarrow>
-    \<exists> i. \<not>semanticsMatElem i cls\<close> sorry
+  pathCls path cls \<Longrightarrow> \<not>(\<exists> prp. (False,prp) \<in> set path \<and> (True, prp) \<in> set path) \<Longrightarrow>
+    \<exists> i. \<not>semanticsCls i cls\<close> sorry
 
 lemma p2:\<open>
-  pathClsElem path mat \<Longrightarrow> \<not>(\<exists> prp. (False,prp) \<in> set path \<and> (True, prp) \<in> set path) \<Longrightarrow>
-    \<exists> i. \<not>semanticsClsElem i mat\<close> sorry*)
+  pathMat path mat \<Longrightarrow> \<not>(\<exists> prp. (False,prp) \<in> set path \<and> (True, prp) \<in> set path) \<Longrightarrow>
+    \<exists> i. \<not>semanticsMat i mat\<close> sorry*)
 
 
 (*
@@ -361,21 +380,21 @@ next
 qed
 
 lemma p3:\<open>
-  \<not>semanticsMatElem i cls \<Longrightarrow> 
-  (\<exists> path. pathMatElem path cls \<and> \<not>(\<exists> prp. (False,prp) \<in> set path \<and> (True, prp) \<in> set path))\<close> \<open>
-  \<not>semanticsClsElem i mat \<Longrightarrow> 
-  (\<exists> path. pathClsElem path mat \<and> \<not>(\<exists> prp. (False,prp) \<in> set path \<and> (True, prp) \<in> set path))\<close> 
+  \<not>semanticsCls i cls \<Longrightarrow> 
+  (\<exists> path. pathCls path cls \<and> \<not>(\<exists> prp. (False,prp) \<in> set path \<and> (True, prp) \<in> set path))\<close> \<open>
+  \<not>semanticsMat i mat \<Longrightarrow> 
+  (\<exists> path. pathMat path mat \<and> \<not>(\<exists> prp. (False,prp) \<in> set path \<and> (True, prp) \<in> set path))\<close> 
   using p3Q pathQ_implies_path semanticsQ_implies_semantics by blast+*)
 
 (*
 lemma \<open>
-  (\<forall> path. pathClsElem path mat \<longrightarrow> (\<exists> prp. (False,prp) \<in> set path \<and> (True,prp) \<in> set path)) \<longleftrightarrow>
-    (\<forall> i. semanticsClsElem i mat)\<close> 
+  (\<forall> path. pathMat path mat \<longrightarrow> (\<exists> prp. (False,prp) \<in> set path \<and> (True,prp) \<in> set path)) \<longleftrightarrow>
+    (\<forall> i. semanticsMat i mat)\<close> 
   by (meson p2 p4)
 
 lemma \<open>
-  (\<forall> path. pathMatElem path mat \<longrightarrow> (\<exists> prp. (False,prp) \<in> set path \<and> (True,prp) \<in> set path)) \<longleftrightarrow>
-    (\<forall> i. semanticsMatElem i mat)\<close> 
+  (\<forall> path. pathCls path mat \<longrightarrow> (\<exists> prp. (False,prp) \<in> set path \<and> (True,prp) \<in> set path)) \<longleftrightarrow>
+    (\<forall> i. semanticsCls i mat)\<close> 
   by (meson p1 p3) *)
 
 primrec sum where
@@ -383,9 +402,10 @@ primrec sum where
   \<open>sum (x # xs) = x + sum xs\<close>
 
 fun nodesMat nodesCls where
-  \<open>nodesMat (Lit _ _) = (0 :: nat)\<close> |
+  \<open>nodesMat (LitM _ _) = (0 :: nat)\<close> |
   \<open>nodesMat (Matrix []) = 0\<close> |
   \<open>nodesMat (Matrix (cls # mat)) = 1 + sum (map nodesCls (cls # mat))\<close> |
+  \<open>nodesCls (LitC _ _) = 0\<close> |
   \<open>nodesCls (Clause []) = 0\<close> |
   \<open>nodesCls (Clause (mat # cls)) = 1 + sum (map nodesMat (mat # cls))\<close> 
 
@@ -409,19 +429,20 @@ proof (induct mat arbitrary: h t)
     by simp
 next
   case (Cons cls mat)
-  consider \<open>cls = Clause []\<close> | \<open>\<exists> h t. cls = Clause (h # t)\<close> 
+  consider \<open>cls = Clause []\<close> | \<open>\<exists> pol prp. cls = LitC pol prp\<close> | \<open>\<exists> h t. cls = Clause (h # t)\<close> 
     by (meson nodesCls.cases)
   then show ?case 
   proof cases
     case 1
-    then have \<open>\<exists>cls\<in>set mat. cls = Clause (h # t)\<close> 
-      using Cons.prems by auto
-    then have \<open>1 < nodesMat (Matrix mat)\<close> 
-      using Cons.hyps by blast
     then show ?thesis
-      using add_clause_preserves_nodes by blast
+      by (metis Cons.hyps Cons.prems add_clause_preserves_nodes list.distinct(1) 
+          matrix_elem.inject(2) set_ConsD)
   next
     case 2
+    then show ?thesis 
+      by (metis Cons.hyps Cons.prems add_clause_preserves_nodes matrix_elem.distinct(1) set_ConsD)
+  next
+    case 3
     then show ?thesis by auto
   qed
 qed
@@ -433,19 +454,19 @@ proof (induct mat)
   then show ?case by simp
 next
   case (Cons cls mat)
-  consider \<open>cls = Clause []\<close> | \<open>\<exists> h t. cls = Clause (h # t)\<close> 
+  consider \<open>(\<exists> pol prp. cls = LitC pol prp) \<or> cls = Clause []\<close> | \<open>\<exists> h t. cls = Clause (h # t)\<close> 
     by (metis nodesCls.cases)
   then show ?case
   proof cases
     case 1
     then have \<open>nodesCls cls = 0\<close> 
-      by simp
+      by auto
     moreover have \<open>nodesMat (Matrix (cls # mat)) = 1 + nodesCls cls + (sum (map nodesCls mat))\<close> 
       by simp
     ultimately show ?thesis 
       by (metis Cons.hyps Cons.prems add_0_iff canonically_ordered_monoid_add_class.lessE 
           clause_elem.distinct(1) clause_elem.inject(2) list.set_intros(2) list.simps(8) 
-          nanoCoP2.sum.simps(1) nodesMat.elims)
+          nanoCoP3.sum.simps(1) nodesMat.elims)
   next
     case 2
     then show ?thesis
@@ -454,10 +475,10 @@ next
 qed 
 
 lemma permPath: 
-  \<open>pathClsElem path mata \<Longrightarrow> mata = Matrix mat1 \<Longrightarrow> matb = Matrix mat2 \<Longrightarrow> perm mat1 mat2 \<Longrightarrow> 
-    pathClsElem path matb\<close>
-  \<open>pathMatElem path clsa \<Longrightarrow> clsa = Clause cls1 \<Longrightarrow> clsb = Clause cls2 \<Longrightarrow> perm cls1 cls2 \<Longrightarrow>
-    pathMatElem path clsb\<close>
+  \<open>pathMat path mata \<Longrightarrow> mata = Matrix mat1 \<Longrightarrow> matb = Matrix mat2 \<Longrightarrow> perm mat1 mat2 \<Longrightarrow> 
+    pathMat path matb\<close>
+  \<open>pathCls path clsa \<Longrightarrow> clsa = Clause cls1 \<Longrightarrow> clsb = Clause cls2 \<Longrightarrow> perm cls1 cls2 \<Longrightarrow>
+    pathCls path clsb\<close>
 proof (induct mata and clsa)
   case (Matrix x)
   then show ?case 
@@ -465,14 +486,14 @@ proof (induct mata and clsa)
 next
   case (Clause x)
   then show ?case
-    by (metis pathClsQ.simps pathQ_implies_path(2) path_implies_pathQ(2) perm_iff)
+    by (metis pathClsQ.simps(2) pathQ_implies_path(2) path_implies_pathQ(2) perm_iff)
 qed auto
 
 lemma permSemantics:
-  \<open>semanticsClsElem i mata \<Longrightarrow> mata = Matrix mat1 \<Longrightarrow> matb = Matrix mat2 \<Longrightarrow> perm mat1 mat2 \<Longrightarrow>
-    semanticsClsElem i matb\<close>
-  \<open>semanticsMatElem i clsa \<Longrightarrow> clsa = Clause cls1 \<Longrightarrow> clsb = Clause cls2 \<Longrightarrow> perm cls1 cls2 \<Longrightarrow>
-    semanticsMatElem i clsb\<close>
+  \<open>semanticsMat i mata \<Longrightarrow> mata = Matrix mat1 \<Longrightarrow> matb = Matrix mat2 \<Longrightarrow> perm mat1 mat2 \<Longrightarrow>
+    semanticsMat i matb\<close>
+  \<open>semanticsCls i clsa \<Longrightarrow> clsa = Clause cls1 \<Longrightarrow> clsb = Clause cls2 \<Longrightarrow> perm cls1 cls2 \<Longrightarrow>
+    semanticsCls i clsb\<close>
 proof (induct mata and clsa)
   case (Matrix x)
   then show ?case 
@@ -481,7 +502,7 @@ proof (induct mata and clsa)
 next
   case (Clause x)
   then show ?case
-    by (metis perm_iff semanticsClsQ.simps semanticsQ_implies_semantics(2) 
+    by (metis perm_iff semanticsClsQ.simps(2) semanticsQ_implies_semantics(2) 
         semantics_implies_semanticsQ(2))
 qed auto
 
@@ -493,27 +514,61 @@ lemma move_to_front_sum:
   \<open>cls \<in> set mat \<Longrightarrow> sum (map nodesCls mat) = sum (map nodesCls (cls # remove1 cls mat))\<close> 
   by (induct mat) auto
 
+primrec unwrap where
+  \<open>unwrap (LitM pol prp) = [LitC pol prp]\<close> |
+  \<open>unwrap (Matrix mat) = mat\<close>
+
 lemma pick_mat_semantics: \<open>
-  (\<forall> i. semanticsClsElem i (Matrix ((Clause cls) # mat))) \<longleftrightarrow> 
-  (\<forall> mat' \<in> set cls. \<forall> i. semanticsClsElem i mat' \<or> semanticsClsElem i (Matrix mat))\<close> sorry
+  (\<forall> i. semanticsMat i (Matrix ((Clause cls) # mat))) \<longleftrightarrow> 
+  (\<forall> mat' \<in> set cls. \<forall> i. 
+    semanticsMat i mat' \<or> semanticsMat i (Matrix ((unwrap mat') @ mat)))\<close> sorry
 
 lemma pick_mat_paths: \<open>
   (
-    \<forall> path. pathClsElem path (Matrix ((Clause cls) # mat)) \<longrightarrow> 
+    \<forall> path. pathMat path (Matrix ((Clause cls) # mat)) \<longrightarrow> 
     (\<exists> prp. (False,prp) \<in> set path \<and> (True,prp) \<in> set path)
   ) \<longleftrightarrow> 
   (
     \<forall> mat' \<in> set cls. 
-       \<forall> path. pathClsElem path mat' \<longrightarrow> pathClsElem path (Matrix mat) \<longrightarrow> 
+       \<forall> path. pathMat path mat' \<longrightarrow> pathMat path (Matrix ((unwrap mat') @ mat)) \<longrightarrow> 
     (\<exists> prp. (False,prp) \<in> set path \<and> (True,prp) \<in> set path)
   )\<close> sorry
 
 lemma pick_mat_nodes: \<open>
-    nodesMat (Matrix ((Clause cls) # mat)) > (nodesMat (Matrix mat))\<close> sorry
+  mat' \<in> set cls \<Longrightarrow>
+    nodesMat (Matrix ((Clause cls) # mat)) > nodesMat (Matrix ((unwrap mat') @ mat))\<close> sorry
+
+lemma flat_matrix_syntactic_to_semantic: \<open>
+  \<forall> cls \<in> set mat. \<exists> pol prp. cls = LitC pol prp \<Longrightarrow>
+    (
+      \<forall> path. pathMat path (Matrix mat) \<longrightarrow> 
+      (\<exists> prp. (False,prp) \<in> set path \<and> (True,prp) \<in> set path)
+    ) \<longleftrightarrow>
+    (\<forall> i. semanticsMat i (Matrix mat))\<close> (is \<open>?flat \<Longrightarrow> ?paths \<longleftrightarrow> ?valid\<close>)
+proof-
+  assume asm1:?flat
+  then have all_paths:\<open>
+    \<forall> path. \<forall> cls \<in> set mat.
+      pathMat path (Matrix mat) \<longrightarrow>
+      (\<exists> pol prp. cls = LitC pol prp \<and> (pol,prp) \<in> set path)\<close>
+    by (metis member_iff pathClsQ.simps(1) pathMatQ.simps(2) path_implies_pathQ(1))
+  show \<open>?paths \<longleftrightarrow> ?valid\<close>
+  proof (rule iffI, rule_tac [!] allI)
+    fix i
+    assume asm2:?paths
+    show \<open>semanticsMat i (Matrix mat)\<close>
+      sorry
+  next
+    fix path
+    assume asm2:?valid
+    show \<open>pathMat path (Matrix mat) \<longrightarrow> (\<exists>prp. (False, prp) \<in> set path \<and> (True, prp) \<in> set path)\<close>
+      sorry
+  qed
+qed
  
 lemma syntactic_to_semantic_validity:\<open>
-  (\<forall> path. pathClsElem path mat \<longrightarrow> (\<exists> prp. (False,prp) \<in> set path \<and> (True,prp) \<in> set path)) \<longleftrightarrow>
-  (\<forall> i. semanticsClsElem i mat)\<close>
+  (\<forall> path. pathMat path mat \<longrightarrow> (\<exists> prp. (False,prp) \<in> set path \<and> (True,prp) \<in> set path)) \<longleftrightarrow>
+  (\<forall> i. semanticsMat i mat)\<close>
 proof (induct \<open>nodesMat mat\<close> arbitrary: mat rule: less_induct)
   case less
   consider (0)\<open>nodesMat mat = 0\<close> | (1)\<open>nodesMat mat = 1\<close> | (n)\<open>1 < nodesMat mat\<close>
@@ -521,33 +576,33 @@ proof (induct \<open>nodesMat mat\<close> arbitrary: mat rule: less_induct)
   then show ?case
   proof cases
     case 0
-    then consider \<open>\<exists> pol prp. mat = Lit pol prp\<close> | \<open>mat = Matrix []\<close> 
+    then consider \<open>\<exists> pol prp. mat = LitM pol prp\<close> | \<open>mat = Matrix []\<close> 
       by (metis add_eq_0_iff_both_eq_0 nodesMat.elims zero_neq_one)
     then show ?thesis 
     proof cases
       case 1
-      then obtain pol prp where mat_def: \<open>mat = Lit pol prp\<close> 
+      then obtain pol prp where mat_def: \<open>mat = LitM pol prp\<close> 
         by auto
       moreover obtain i where \<open>i prp = pol\<close>
         by simp
-      ultimately have \<open>\<not>semanticsClsElem i mat\<close> 
+      ultimately have \<open>\<not>semanticsMat i mat\<close> 
         by simp
-      moreover have \<open>pathClsElem [(pol,prp)] mat\<close> 
+      moreover have \<open>pathMat [(pol,prp)] mat\<close> 
         by (simp add: mat_def)
       ultimately show ?thesis 
         by auto
     next
       case 2
       then show ?thesis
-        by (meson in_set_member member_rec(2) pathClsElem.simps(2) semanticsClsElem.simps(2))
+        by (meson in_set_member member_rec(2) pathMat.simps(2) semanticsMat.simps(2))
     qed
   next
     case 1
     then obtain matI where mat_def:\<open>mat = Matrix matI\<close> 
       by (metis clause_elem.exhaust nodesMat.simps(1) zero_neq_one)
-    have \<open>\<forall> cls \<in> set matI. cls = Clause []\<close>
+    have \<open>\<forall> cls \<in> set matI. cls = Clause [] \<or> (\<exists> pol prp. cls = LitC pol prp)\<close>
     proof (rule ccontr)
-      assume \<open>\<not> (\<forall>cls\<in>set matI. cls = Clause [])\<close>
+      assume \<open>\<not> (\<forall>cls\<in>set matI. cls = Clause [] \<or> (\<exists> pol prp. cls = LitC pol prp))\<close>
       then obtain cls h t where \<open>cls \<in> set matI \<and> cls = Clause (h # t)\<close>
         by (meson nodesCls.cases)
       then have \<open>nodesMat mat > 1\<close> 
@@ -555,10 +610,22 @@ proof (induct \<open>nodesMat mat\<close> arbitrary: mat rule: less_induct)
       then show False 
         by (simp add: "1")
     qed
+    then consider 
+      (ex)\<open>\<exists> cls \<in> set matI. cls = Clause []\<close> | (al)\<open>\<forall> cls \<in> set matI. (\<exists> pol prp. cls = LitC pol prp)\<close>
+      by blast
     then show ?thesis 
-      by (metis "1" One_nat_def clause_elem.inject(2) list.set_intros(1) mat_def 
-          nodesMat.elims pathClsElem.simps(3) pathMatElem.simps(1) semanticsClsElem.simps(3) 
-          semanticsMatElem.simps(1) zero_neq_one)
+    proof cases
+      case ex
+      then have \<open>perm matI (Clause [] # remove1 (Clause []) matI)\<close> 
+        by (meson move_to_front_perm)
+      then show ?thesis 
+        by (metis mat_def pathCls.simps(2) pathMat.simps(3) permPath(1) permSemantics(1) 
+            semanticsCls.simps(2) semanticsMat.simps(3))
+    next
+      case al
+      then show ?thesis
+        by (simp add: flat_matrix_syntactic_to_semantic mat_def)
+    qed
   next
     case n
     then obtain matI where mat_def:\<open>mat = Matrix matI\<close> 
@@ -569,10 +636,10 @@ proof (induct \<open>nodesMat mat\<close> arbitrary: mat rule: less_induct)
     let ?cls = \<open>Clause (clsh # clst)\<close>
     let ?paths_cls_in_front = \<open>
       (
-        \<forall>path. pathClsElem path (Matrix (?cls # remove1 ?cls matI)) \<longrightarrow> 
+        \<forall>path. pathMat path (Matrix (?cls # remove1 ?cls matI)) \<longrightarrow> 
         (\<exists>prp. (False, prp) \<in> set path \<and> (True, prp) \<in> set path)
       )\<close>
-    let ?semantics_cls_in_front = \<open>(\<forall>i. semanticsClsElem i (Matrix (?cls # remove1 ?cls matI)))\<close>
+    let ?semantics_cls_in_front = \<open>(\<forall>i. semanticsMat i (Matrix (?cls # remove1 ?cls matI)))\<close>
     
     have unwrapped_nodes: \<open>
         nodesMat (Matrix (remove1 ?cls matI)) < nodesMat mat\<close> 
@@ -581,7 +648,7 @@ proof (induct \<open>nodesMat mat\<close> arbitrary: mat rule: less_induct)
       ?paths_cls_in_front \<longleftrightarrow>
       (
         \<forall> mat' \<in> set (clsh # clst). 
-           \<forall> path. pathClsElem path mat' \<longrightarrow> pathClsElem path (Matrix (remove1 ?cls matI)) \<longrightarrow> 
+           \<forall> path. pathMat path mat' \<longrightarrow> pathMat path (Matrix (remove1 ?cls matI)) \<longrightarrow> 
         (\<exists> prp. (False,prp) \<in> set path \<and> (True,prp) \<in> set path)
       )\<close> 
       using pick_mat_paths by fast
@@ -589,7 +656,7 @@ proof (induct \<open>nodesMat mat\<close> arbitrary: mat rule: less_induct)
       ... \<longleftrightarrow>
       (
         \<forall> mat' \<in> set (clsh # clst).
-          \<forall> i. semanticsClsElem i mat' \<or> semanticsClsElem i (Matrix (remove1 ?cls matI))
+          \<forall> i. semanticsMat i mat' \<or> semanticsMat i (Matrix (remove1 ?cls matI))
       )\<close> (is \<open>?paths \<longleftrightarrow> ?semantics\<close>)
     proof
       assume asm: ?paths
@@ -598,11 +665,11 @@ proof (induct \<open>nodesMat mat\<close> arbitrary: mat rule: less_induct)
         fix mat'
         assume \<open>mat' \<in> set (clsh # clst)\<close>
         have \<open>\<forall>i. 
-          semanticsClsElem i (Matrix (remove1 ?cls matI))\<close> 
+          semanticsMat i (Matrix (remove1 ?cls matI))\<close> 
           using asm unwrapped_nodes sorry
         then show \<open>\<forall>i. 
-          semanticsClsElem i mat' \<or> 
-          semanticsClsElem i (Matrix (remove1 ?cls matI))\<close>
+          semanticsMat i mat' \<or> 
+          semanticsMat i (Matrix (remove1 ?cls matI))\<close>
     next
       assume asm: ?semantics
       show ?paths sorry
@@ -618,7 +685,7 @@ proof (induct \<open>nodesMat mat\<close> arbitrary: mat rule: less_induct)
 qed
 
 theorem path_soundness: 
-  \<open>nanoCoP mat path \<Longrightarrow> \<forall> path'. ext path' path \<longrightarrow> pathClsElem path' (Matrix mat) \<longrightarrow> 
+  \<open>nanoCoP mat path \<Longrightarrow> \<forall> path'. ext path' path \<longrightarrow> pathMat path' (Matrix mat) \<longrightarrow> 
     (\<exists> prp. (False,prp) \<in> set path' \<and> (True,prp) \<in> set path')\<close>
 proof (induct rule: nanoCoP.induct)
   case (Axiom Mat Path)
@@ -631,12 +698,12 @@ next
 next
   case (PermCls Cls1 Cls2 Mat Path)
   then show ?case
-    by (meson pathClsElem.simps(3) permPath(2))
+    by (meson pathMat.simps(3) permPath(2))
 next
   case (ReductionLit pol prp Path Cls Mat)
   then show ?case 
-    by (smt (verit, best) ext_iff member_iff pathClsElem.simps(1) pathClsElem.simps(3) 
-        pathMatElem.simps(2))
+    by (smt (verit, best) ext_iff member_iff pathMat.simps(1) pathMat.simps(3) 
+        pathCls.simps(2))
 next
   case (ReductionMat mat Path Cls Mat)
   then show ?case 
@@ -644,16 +711,16 @@ next
 next
   case (ExtensionLit Mat pol prp Path Cls)
   then show ?case
-    by (metis ext.simps(2) pathClsElem.simps(1) pathClsElem.simps(3) pathMatElem.simps(2))
+    by (metis ext.simps(2) pathMat.simps(1) pathMat.simps(3) pathCls.simps(2))
 next
   case (ExtensionMat mat Mat Path Cls)
   then show ?case
     by auto
 qed
 
-theorem soundness: \<open>nanoCoP mat [] \<Longrightarrow> (\<forall> i. semanticsClsElem i (Matrix mat))\<close> 
+theorem soundness: \<open>nanoCoP mat [] \<Longrightarrow> (\<forall> i. semanticsMat i (Matrix mat))\<close> 
   by (meson ext.simps(1) syntactic_to_semantic_validity path_soundness)
 
-theorem main: \<open>nanoCoP mat [] \<longleftrightarrow> (\<forall> i. semanticsClsElem i (Matrix mat))\<close> sorry
+theorem main: \<open>nanoCoP mat [] \<longleftrightarrow> (\<forall> i. semanticsMat i (Matrix mat))\<close> sorry
 
 end
