@@ -398,8 +398,11 @@ lemma \<open>
   by (meson p1 p3) *)
 
 primrec sum where
-  \<open>sum [] = 0\<close> |
+  \<open>sum [] = (0 :: nat)\<close> |
   \<open>sum (x # xs) = x + sum xs\<close>
+
+lemma sum_append: \<open>sum (xs @ ys) = sum xs + sum ys\<close>
+  by (induct xs) auto
 
 fun nodesMat nodesCls where
   \<open>nodesMat (LitM _ _) = (0 :: nat)\<close> |
@@ -510,9 +513,13 @@ lemma move_to_front_perm:
   \<open>cls \<in> set mat \<Longrightarrow> perm mat (cls # remove1 cls mat)\<close>
   using in_set_remove1 by fastforce 
 
-lemma move_to_front_sum:
+lemma move_to_front_sum_mat:
   \<open>cls \<in> set mat \<Longrightarrow> sum (map nodesCls mat) = sum (map nodesCls (cls # remove1 cls mat))\<close> 
   by (induct mat) auto
+
+lemma move_to_front_sum_cls:
+  \<open>mat \<in> set cls \<Longrightarrow> sum (map nodesMat cls) = sum (map nodesMat (mat # remove1 mat cls))\<close> 
+  by (induct cls) auto
 
 primrec unwrap where
   \<open>unwrap (LitM pol prp) = [LitC pol prp]\<close> |
@@ -521,7 +528,7 @@ primrec unwrap where
 lemma pick_mat_semantics: \<open>
   (\<forall> i. semanticsMat i (Matrix ((Clause cls) # mat))) \<longleftrightarrow> 
   (\<forall> mat' \<in> set cls. \<forall> i. 
-    semanticsMat i mat' \<or> semanticsMat i (Matrix ((unwrap mat') @ mat)))\<close> sorry
+    semanticsMat i (Matrix ((unwrap mat') @ mat)))\<close> sorry
 
 lemma pick_mat_paths: \<open>
   (
@@ -530,13 +537,60 @@ lemma pick_mat_paths: \<open>
   ) \<longleftrightarrow> 
   (
     \<forall> mat' \<in> set cls. 
-       \<forall> path. pathMat path mat' \<longrightarrow> pathMat path (Matrix ((unwrap mat') @ mat)) \<longrightarrow> 
+       \<forall> path. pathMat path (Matrix ((unwrap mat') @ mat)) \<longrightarrow> 
     (\<exists> prp. (False,prp) \<in> set path \<and> (True,prp) \<in> set path)
   )\<close> sorry
 
 lemma pick_mat_nodes: \<open>
   mat' \<in> set cls \<Longrightarrow>
-    nodesMat (Matrix ((Clause cls) # mat)) > nodesMat (Matrix ((unwrap mat') @ mat))\<close> sorry
+    nodesMat (Matrix ((Clause cls) # mat)) > nodesMat (Matrix ((unwrap mat') @ mat))\<close> 
+  (is \<open>?mat \<Longrightarrow> ?nodes\<close>) 
+proof-
+  assume mat'_def: ?mat
+  have cls_mat_nodes:\<open>
+    nodesMat (Matrix ((Clause cls) # mat)) = 
+    1 + nodesCls (Clause cls) + sum (map nodesCls mat)\<close>
+    by simp
+  have cls_nodes:\<open>
+    nodesCls (Clause cls) = 1 + nodesMat mat' + sum (map nodesMat (remove1 mat' cls))\<close> 
+    using mat'_def move_to_front_sum_cls 
+    by (smt (verit, ccfv_threshold) ab_semigroup_add_class.add_ac(1) list.set_cases list.simps(9) 
+        nanoCoP3.sum.simps(2) nodesCls.simps(3))
+  consider \<open>\<exists> pol prp. mat' = LitM pol prp\<close> | \<open>\<exists> matI'. mat' = Matrix matI'\<close> 
+    by (meson clause_elem.exhaust)
+  then show ?nodes 
+  proof cases
+    case 1
+    then show ?thesis 
+      using append_eq_append_conv2 cls_nodes by auto
+  next
+    case 2
+    consider (21)\<open>unwrap mat' @ mat = []\<close> | (22)\<open>unwrap mat' @ mat \<noteq> []\<close> 
+      by fast
+    then show ?thesis 
+    proof cases
+      case 21
+      then show ?thesis 
+        by simp
+    next
+      case 22
+      then have \<open>
+        nodesMat (Matrix (unwrap mat' @ mat)) = 
+        1 + sum (map nodesCls (unwrap mat')) + sum (map nodesCls mat)\<close> 
+        using sum_append 
+        by (metis clause_elem.distinct(1) clause_elem.inject(2) group_cancel.add1 map_append 
+            nodesMat.elims)
+      then show ?thesis 
+        by (metis "2" add.commute add_strict_right_mono clause_elem.distinct(1) cls_mat_nodes 
+            cls_nodes less_add_same_cancel1 list.simps(8) nanoCoP3.sum.simps(1) nodesMat.elims 
+            trans_less_add1 unwrap.simps(2) zero_less_one)
+    qed
+  qed
+qed
+
+primrec lit_to_path_elem where
+  \<open>lit_to_path_elem (LitC pol prp) = (pol,prp)\<close> |
+  \<open>lit_to_path_elem (Clause mat) = undefined\<close>
 
 lemma flat_matrix_syntactic_to_semantic: \<open>
   \<forall> cls \<in> set mat. \<exists> pol prp. cls = LitC pol prp \<Longrightarrow>
@@ -556,13 +610,54 @@ proof-
   proof (rule iffI, rule_tac [!] allI)
     fix i
     assume asm2:?paths
-    show \<open>semanticsMat i (Matrix mat)\<close>
-      sorry
+    have \<open>\<exists> prp. LitC True prp \<in> set mat \<and> LitC False prp \<in> set mat\<close>
+    proof (rule ccontr)
+      assume asm3:\<open>\<nexists> prp. LitC True prp \<in> set mat \<and> LitC False prp \<in> set mat\<close>
+      obtain path where path_def:\<open>path = map lit_to_path_elem mat\<close>
+        by simp
+      have lit_in_path_in_mat:
+        \<open>\<forall> lit \<in> set path. \<exists> pol prp. lit = (pol,prp) \<and> LitC pol prp \<in> set mat\<close> 
+      proof
+        fix lit
+        assume asm4:\<open>lit \<in> set path\<close>
+        obtain pol prp where lit_def:\<open>lit = (pol,prp)\<close> 
+          by fastforce
+        then obtain cls where cls_def: \<open>cls \<in> set mat \<and> lit = lit_to_path_elem cls\<close> 
+          using asm4 path_def by auto
+        then have \<open>cls = LitC pol prp\<close>
+          using lit_def asm1 by (metis Pair_inject lit_to_path_elem.simps(1))
+        then show \<open>\<exists> pol prp. lit = (pol,prp) \<and> LitC pol prp \<in> set mat\<close>
+          using cls_def by auto
+      qed
+      then have \<open>\<nexists> prp. (True, prp) \<in> set path \<and> (False, prp) \<in> set path\<close> 
+        using asm1 asm3 by blast 
+      moreover have \<open>pathMat path (Matrix mat)\<close>
+        using lit_in_path_in_mat 
+        by (metis asm1 in_set_conv_nth length_map lit_to_path_elem.simps(1) matrix_elem.distinct(1) 
+            member_iff nth_map pathClsQ.elims(3) pathMatQ.simps(2) pathQ_implies_path(1) path_def)
+      ultimately show False 
+        using asm2 by blast
+    qed
+    then show \<open>semanticsMat i (Matrix mat)\<close>
+      by (metis move_to_front_perm permSemantics(1) semanticsCls.simps(1) semanticsMat.simps(3))
   next
     fix path
     assume asm2:?valid
     show \<open>pathMat path (Matrix mat) \<longrightarrow> (\<exists>prp. (False, prp) \<in> set path \<and> (True, prp) \<in> set path)\<close>
-      sorry
+    proof (rule impI, rule ccontr)
+      assume asm3:\<open>pathMat path (Matrix mat)\<close>
+      assume asm4:\<open>\<nexists>prp. (False, prp) \<in> set path \<and> (True, prp) \<in> set path\<close>
+      then have nexi_prp:\<open>\<nexists>prp. LitC True prp \<in> set mat \<and> LitC False prp \<in> set mat\<close> 
+        using all_paths asm3 by blast
+      obtain i where i_def:\<open>i = (\<lambda> prp. LitC True prp \<in> set mat)\<close>
+        by simp
+      have \<open>\<not>semanticsMatQ i (Matrix mat)\<close>
+        using asm1 i_def nexi_prp by fastforce
+      then have \<open>\<not>semanticsMat i (Matrix mat)\<close>
+        using semantics_implies_semanticsQ(1) by blast
+      then show False
+        using asm2 by simp
+    qed
   qed
 qed
  
@@ -611,7 +706,8 @@ proof (induct \<open>nodesMat mat\<close> arbitrary: mat rule: less_induct)
         by (simp add: "1")
     qed
     then consider 
-      (ex)\<open>\<exists> cls \<in> set matI. cls = Clause []\<close> | (al)\<open>\<forall> cls \<in> set matI. (\<exists> pol prp. cls = LitC pol prp)\<close>
+      (ex)\<open>\<exists> cls \<in> set matI. cls = Clause []\<close> | 
+      (al)\<open>\<forall> cls \<in> set matI. (\<exists> pol prp. cls = LitC pol prp)\<close>
       by blast
     then show ?thesis 
     proof cases
@@ -641,14 +737,15 @@ proof (induct \<open>nodesMat mat\<close> arbitrary: mat rule: less_induct)
       )\<close>
     let ?semantics_cls_in_front = \<open>(\<forall>i. semanticsMat i (Matrix (?cls # remove1 ?cls matI)))\<close>
     
-    have unwrapped_nodes: \<open>
-        nodesMat (Matrix (remove1 ?cls matI)) < nodesMat mat\<close> 
-      by (metis cls_def list.set_cases mat_def move_to_front_sum nodesMat.simps(3) pick_mat_nodes)
+    have unwrapped_nodes: \<open>\<forall> mat' \<in> set (clsh # clst).
+        nodesMat (Matrix (unwrap mat' @ remove1 ?cls matI)) < nodesMat mat\<close>  
+      by (metis cls_def mat_def move_to_front_sum_mat n nodesMat.elims nodesMat.simps(3) 
+          not_one_less_zero pick_mat_nodes unwrap.simps(2))
     have \<open>
       ?paths_cls_in_front \<longleftrightarrow>
       (
         \<forall> mat' \<in> set (clsh # clst). 
-           \<forall> path. pathMat path mat' \<longrightarrow> pathMat path (Matrix (remove1 ?cls matI)) \<longrightarrow> 
+           \<forall> path. pathMat path (Matrix (unwrap mat' @ remove1 ?cls matI)) \<longrightarrow> 
         (\<exists> prp. (False,prp) \<in> set path \<and> (True,prp) \<in> set path)
       )\<close> 
       using pick_mat_paths by fast
@@ -656,24 +753,9 @@ proof (induct \<open>nodesMat mat\<close> arbitrary: mat rule: less_induct)
       ... \<longleftrightarrow>
       (
         \<forall> mat' \<in> set (clsh # clst).
-          \<forall> i. semanticsMat i mat' \<or> semanticsMat i (Matrix (remove1 ?cls matI))
-      )\<close> (is \<open>?paths \<longleftrightarrow> ?semantics\<close>)
-    proof
-      assume asm: ?paths
-      show ?semantics 
-      proof 
-        fix mat'
-        assume \<open>mat' \<in> set (clsh # clst)\<close>
-        have \<open>\<forall>i. 
-          semanticsMat i (Matrix (remove1 ?cls matI))\<close> 
-          using asm unwrapped_nodes sorry
-        then show \<open>\<forall>i. 
-          semanticsMat i mat' \<or> 
-          semanticsMat i (Matrix (remove1 ?cls matI))\<close>
-    next
-      assume asm: ?semantics
-      show ?paths sorry
-    qed
+          \<forall> i. semanticsMat i (Matrix (unwrap mat' @ remove1 ?cls matI))
+      )\<close>
+        using less unwrapped_nodes by fastforce
     moreover have \<open>
       ... \<longleftrightarrow> ?semantics_cls_in_front\<close>
       using pick_mat_semantics by blast
@@ -702,20 +784,27 @@ next
 next
   case (ReductionLit pol prp Path Cls Mat)
   then show ?case 
-    by (smt (verit, best) ext_iff member_iff pathMat.simps(1) pathMat.simps(3) 
-        pathCls.simps(2))
+    by (smt (verit) ext_iff member_iff pathCls.simps(3) pathMat.simps(1) pathMat.simps(3))
 next
   case (ReductionMat mat Path Cls Mat)
   then show ?case 
     by auto
 next
   case (ExtensionLit Mat pol prp Path Cls)
-  then show ?case
-    by (metis ext.simps(2) pathMat.simps(1) pathMat.simps(3) pathCls.simps(2))
+  then show ?case 
+    by (metis ext.simps(2) pathCls.simps(3) pathMat.simps(1) pathMat.simps(3))
 next
   case (ExtensionMat mat Mat Path Cls)
   then show ?case
     by auto
+next
+  case (ReductionLitC pol prp Path Mat)
+  then show ?case 
+    by (smt (verit, del_insts) ext_iff member_iff pathCls.simps(1) pathMat.simps(3))
+next
+  case (ExtensionLitC Mat pol prp Path)
+  then show ?case
+    by simp
 qed
 
 theorem soundness: \<open>nanoCoP mat [] \<Longrightarrow> (\<forall> i. semanticsMat i (Matrix mat))\<close> 
