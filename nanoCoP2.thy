@@ -35,9 +35,14 @@ abbreviation \<open>perm xs ys \<equiv> ext xs ys \<and> ext ys xs\<close>
 lemma perm_iff [iff]: \<open>perm xs ys \<longleftrightarrow> set xs = set ys\<close>
   by (induct xs) auto
 
+(*LitC rules and PathAxiom are necessary because of the way we define the path semantics*)
 inductive nanoCoP where
   Axiom: 
     \<open>nanoCoP (Clause [] # Mat) Path\<close> |
+  PathAxiom:
+    \<open>nanoCoP Mat Path\<close> if
+    \<open>member (pol,prp) Path\<close> and
+    \<open>member (\<not>pol,prp) Path\<close>|
   PermMat: 
     \<open>nanoCoP Mat2 Path\<close> if 
     \<open>perm Mat1 Mat2\<close> and
@@ -352,7 +357,7 @@ next
     ultimately show ?thesis 
       by (metis Cons.hyps Cons.prems add_0_iff canonically_ordered_monoid_add_class.lessE 
           clause_elem.distinct(1) clause_elem.inject(2) list.set_intros(2) list.simps(8) 
-          nanoCoP3.sum.simps(1) nodesMat.elims)
+          sum.simps(1) nodesMat.elims)
   next
     case 2
     then show ?thesis
@@ -404,14 +409,14 @@ lemma move_to_front_sum_cls:
   \<open>mat \<in> set cls \<Longrightarrow> sum (map nodesMat cls) = sum (map nodesMat (mat # remove1 mat cls))\<close> 
   by (induct cls) auto
 
-primrec unwrap where
-  \<open>unwrap (LitM pol prp) = [LitC pol prp]\<close> |
-  \<open>unwrap (Matrix mat) = mat\<close>
-
 lemma split_matrix_preserves_semantics: \<open>
   semanticsMat i (Matrix (mat1 @ mat2)) \<longleftrightarrow> 
   semanticsMat i (Matrix mat1) \<or> semanticsMat i (Matrix mat2)\<close> 
   by (induct mat1) simp_all
+
+primrec unwrap where
+  \<open>unwrap (LitM pol prp) = [LitC pol prp]\<close> |
+  \<open>unwrap (Matrix mat) = mat\<close>
 
 lemma pick_mat_semantics: \<open>
   (\<forall> i. semanticsMat i (Matrix ((Clause cls) # mat))) \<longleftrightarrow> 
@@ -540,7 +545,7 @@ proof-
     nodesCls (Clause cls) = 1 + nodesMat mat' + sum (map nodesMat (remove1 mat' cls))\<close> 
     using mat'_def move_to_front_sum_cls 
     by (smt (verit, ccfv_threshold) ab_semigroup_add_class.add_ac(1) list.set_cases list.simps(9) 
-        nanoCoP3.sum.simps(2) nodesCls.simps(3))
+        sum.simps(2) nodesCls.simps(3))
   consider \<open>\<exists> pol prp. mat' = LitM pol prp\<close> | \<open>\<exists> matI'. mat' = Matrix matI'\<close> 
     by (meson clause_elem.exhaust)
   then show ?nodes 
@@ -567,7 +572,7 @@ proof-
             nodesMat.elims)
       then show ?thesis 
         by (metis "2" add.commute add_strict_right_mono clause_elem.distinct(1) cls_mat_nodes 
-            cls_nodes less_add_same_cancel1 list.simps(8) nanoCoP3.sum.simps(1) nodesMat.elims 
+            cls_nodes less_add_same_cancel1 list.simps(8) sum.simps(1) nodesMat.elims 
             trans_less_add1 unwrap.simps(2) zero_less_one)
     qed
   qed
@@ -645,6 +650,20 @@ proof-
     qed
   qed
 qed
+
+lemma one_node_implies_flat: \<open>
+  nodesMat mat = 1 \<Longrightarrow> 
+  \<exists> matI. mat = Matrix matI \<and> 
+  (\<forall> cls \<in> set matI. cls = Clause [] \<or> (\<exists> pol prp. cls = LitC pol prp))\<close> (is \<open>?nds \<Longrightarrow> ?matI\<close>) 
+proof-
+  assume asm1: \<open>nodesMat mat = 1\<close>
+  then obtain matI where mat_def: \<open>mat = Matrix matI\<close> 
+    by (metis clause_elem.exhaust nodesMat.simps(1) zero_neq_one)
+  moreover have \<open>\<forall> cls \<in> set matI. cls = Clause [] \<or> (\<exists> pol prp. cls = LitC pol prp)\<close>  
+    by (metis asm1 less_numeral_extra(4) mat_def nodesCls.cases nodes_in_non_empty_cls)
+  ultimately show ?matI 
+    by simp
+qed
  
 lemma syntactic_to_semantic_validity:\<open>
   (\<forall> path. pathMat path mat \<longrightarrow> (\<exists> prp. (False,prp) \<in> set path \<and> (True,prp) \<in> set path)) \<longleftrightarrow>
@@ -678,18 +697,9 @@ proof (induct \<open>nodesMat mat\<close> arbitrary: mat rule: less_induct)
     qed
   next
     case 1
-    then obtain matI where mat_def:\<open>mat = Matrix matI\<close> 
-      by (metis clause_elem.exhaust nodesMat.simps(1) zero_neq_one)
-    have \<open>\<forall> cls \<in> set matI. cls = Clause [] \<or> (\<exists> pol prp. cls = LitC pol prp)\<close>
-    proof (rule ccontr)
-      assume \<open>\<not> (\<forall>cls\<in>set matI. cls = Clause [] \<or> (\<exists> pol prp. cls = LitC pol prp))\<close>
-      then obtain cls h t where \<open>cls \<in> set matI \<and> cls = Clause (h # t)\<close>
-        by (meson nodesCls.cases)
-      then have \<open>nodesMat mat > 1\<close> 
-        using mat_def nodes_in_non_empty_cls by auto
-      then show False 
-        by (simp add: "1")
-    qed
+    then obtain matI where mat_def:\<open>
+      mat = Matrix matI \<and> (\<forall> cls \<in> set matI. cls = Clause [] \<or> (\<exists> pol prp. cls = LitC pol prp))\<close> 
+      using one_node_implies_flat by blast
     then consider 
       (ex)\<open>\<exists> cls \<in> set matI. cls = Clause []\<close> | 
       (al)\<open>\<forall> cls \<in> set matI. (\<exists> pol prp. cls = LitC pol prp)\<close>
@@ -751,13 +761,18 @@ proof (induct \<open>nodesMat mat\<close> arbitrary: mat rule: less_induct)
   qed
 qed
 
-theorem path_soundness: 
-  \<open>nanoCoP mat path \<Longrightarrow> \<forall> path'. ext path' path \<longrightarrow> pathMat path' (Matrix mat) \<longrightarrow> 
+theorem path_soundness: \<open>
+  nanoCoP mat path \<Longrightarrow> 
+    \<forall> path'. ext path' path \<longrightarrow> pathMat path' (Matrix mat) \<longrightarrow> 
     (\<exists> prp. (False,prp) \<in> set path' \<and> (True,prp) \<in> set path')\<close>
 proof (induct rule: nanoCoP.induct)
   case (Axiom Mat Path)
   then show ?case
     by simp
+next
+  case (PathAxiom pol prp Path Mat)
+  then show ?case
+    by (metis (full_types) ext_iff member_iff)
 next
   case (PermMat Mat1 Path Mat2)
   then show ?case 
@@ -792,9 +807,123 @@ next
     by simp
 qed
 
-theorem soundness: \<open>nanoCoP mat [] \<Longrightarrow> (\<forall> i. semanticsMat i (Matrix mat))\<close> 
+theorem soundness: \<open>nanoCoP mat [] \<Longrightarrow> \<forall> i. semanticsMat i (Matrix mat)\<close> 
   by (meson ext.simps(1) syntactic_to_semantic_validity path_soundness)
 
-theorem completeness: \<open>nanoCoP mat [] \<longleftrightarrow> (\<forall> i. semanticsMat i (Matrix mat))\<close> sorry
+theorem path_completeness: \<open>
+  \<forall> path'. ext path' Path \<longrightarrow> pathMat path' (Matrix Mat) \<longrightarrow> 
+    (\<exists> prp. (False,prp) \<in> set path' \<and> (True,prp) \<in> set path') \<Longrightarrow>
+  nanoCoP Mat Path\<close> 
+proof (induct \<open>nodesMat (Matrix Mat)\<close> arbitrary: Mat Path rule: less_induct)
+  case less
+  consider 
+    (0) \<open>nodesMat (Matrix Mat) = 0\<close> | 
+    (1) \<open>nodesMat (Matrix Mat) = 1\<close> | 
+    (n) \<open>1 < nodesMat (Matrix Mat)\<close> 
+    by linarith
+  then show ?case 
+  proof cases
+    case 0
+    have \<open>Mat = []\<close>
+    proof (rule ccontr)
+      assume "Mat \<noteq> []"
+      then obtain hmat tmat where \<open>Mat = hmat # tmat\<close> 
+        by (meson list.exhaust)
+      then have \<open>nodesMat (Matrix Mat) = 1 + sum (map nodesCls (hmat # tmat))\<close>
+        by simp
+      then show False 
+        by (simp add: "0")
+    qed
+    then show ?thesis
+      using PathAxiom less.prems by fastforce
+  next
+    case 1
+    then have flat:\<open>\<forall> cls \<in> set Mat. cls = Clause [] \<or> (\<exists> pol prp. cls = LitC pol prp)\<close> 
+      using one_node_implies_flat by auto
+    have \<open>
+      Clause [] \<in> set Mat \<or>
+      (\<exists> prp. (True,prp) \<in> set Path \<and> (False,prp) \<in> set Path) \<or>
+      (\<exists> prp. LitC True prp \<in> set Mat \<and> LitC False prp \<in> set Mat) \<or>
+      (\<exists> pol prp. LitC pol prp \<in> set Mat \<and> (\<not>pol,prp) \<in> set Path)\<close> 
+      (is \<open>?empty \<or> ?path \<or> ?mat \<or> ?path_mat\<close>)
+    proof (rule ccontr)
+      assume asm1:\<open>\<not>(?empty \<or> ?path \<or> ?mat \<or> ?path_mat)\<close>
+      then obtain path' where path'_def:\<open>path' = map lit_to_path_elem Mat @ Path\<close>
+        by simp
+      have path'_iff:\<open>
+        \<forall> pol prp. (pol,prp) \<in> set path' \<longleftrightarrow> (pol,prp) \<in> set Path \<or> LitC pol prp \<in> set Mat\<close> 
+      proof (rule allI, rule allI, rule iffI)
+        fix pol prp
+        assume asm2:\<open>(pol,prp) \<in> set path'\<close>
+        then consider \<open>(pol,prp) \<in> set Path\<close> | \<open>(pol,prp) \<in> set (map lit_to_path_elem Mat)\<close> 
+          using path'_def by auto
+        then show \<open>(pol,prp) \<in> set Path \<or> LitC pol prp \<in> set Mat\<close>
+        proof cases
+          case 1
+          then show ?thesis
+            by simp
+        next
+          case 2
+          then obtain cls where cls_def: \<open>cls \<in> set Mat \<and> (pol,prp) = lit_to_path_elem cls\<close> 
+            by auto
+          then show ?thesis
+            using flat asm1 by (metis Pair_inject lit_to_path_elem.simps(1))
+        qed
+      next
+        fix pol prp
+        assume asm2:\<open>(pol,prp) \<in> set Path \<or> LitC pol prp \<in> set Mat\<close>
+        then show \<open>(pol,prp) \<in> set path'\<close> 
+            using path'_def by force
+      qed
+      then have \<open>\<nexists> prp. (True,prp) \<in> set path' \<and> (False,prp) \<in> set path'\<close> 
+        by (metis (full_types) asm1)
+      moreover have \<open>ext path' Path\<close> 
+        by (simp add: path'_def)
+      moreover have \<open>pathMat path' (Matrix Mat)\<close> 
+      proof-
+        have \<open>pathMatQ path' (Matrix Mat)\<close> 
+          using asm1 flat path'_iff by auto
+        then show ?thesis 
+          using pathQ_implies_path(1) by blast
+      qed
+      ultimately show False
+        by (meson less.prems)
+    qed
+    then consider 
+      \<open>Clause [] \<in> set Mat\<close> |
+      \<open>\<exists> prp. (True,prp) \<in> set Path \<and> (False,prp) \<in> set Path\<close> |
+      \<open>\<exists> prp. LitC True prp \<in> set Mat \<and> LitC False prp \<in> set Mat\<close> |
+      \<open>\<exists> pol prp. LitC pol prp \<in> set Mat \<and> (\<not>pol,prp) \<in> set Path\<close> 
+      by fast
+    then show ?thesis 
+    proof cases
+      case 1
+      then show ?thesis
+        by (metis Axiom PermMat ext.simps(2) member_iff perm_iff)
+    next
+      case 2
+      then show ?thesis 
+        using PathAxiom by fastforce
+    next
+      case 3
+      then show ?thesis 
+        by (smt (verit) ExtensionLitC PermMat ReductionLitC ext.simps(2) member_iff perm_iff)
+    next
+      case 4
+      then show ?thesis
+        by (metis (full_types) PermMat ReductionLitC ext.simps(2) member_iff perm_iff)
+    qed
+  next
+    case n
+    then show ?thesis sorry
+  qed
+qed
+
+theorem completeness: \<open>
+  \<forall> i. semanticsMat i (Matrix mat) \<Longrightarrow> nanoCoP mat []\<close>
+  by (simp add: path_completeness syntactic_to_semantic_validity)
+
+theorem main: \<open>nanoCoP mat [] \<longleftrightarrow> (\<forall> i. semanticsMat i (Matrix mat))\<close> 
+  using completeness soundness by auto
 
 end
