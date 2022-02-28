@@ -51,13 +51,6 @@ inductive nanoCoP where
     \<open>nanoCoP (Clause Cls2 # Mat) Path\<close> if 
     \<open>ext Cls1 Cls2\<close> and 
     \<open>nanoCoP (Clause Cls1 # Mat) Path\<close> |
-  ReductionLit: 
-    \<open>nanoCoP (Clause (LitM pol prp # Cls) # Mat) Path\<close> if
-    \<open>member (\<not>pol, prp) Path\<close> and 
-    \<open>nanoCoP (Clause Cls # Mat) Path\<close> |
-  ReductionLitC: 
-    \<open>nanoCoP (LitC pol prp # Mat) Path\<close> if 
-    \<open>member (\<not>pol, prp) Path\<close> |
   ExtensionLit: 
     \<open>nanoCoP (Clause (LitM pol prp # Cls) # Mat) Path\<close> if
     \<open>nanoCoP Mat ((pol, prp) # Path)\<close> and
@@ -69,6 +62,18 @@ inductive nanoCoP where
     \<open>nanoCoP (Clause (Matrix mat # Cls) # Mat) Path\<close> if
     \<open>nanoCoP (mat @ Mat) Path\<close> and
     \<open>nanoCoP (Clause Cls # Mat) Path\<close>
+
+lemma ReductionLit:
+  \<open>nanoCoP (Clause (LitM pol prp # Cls) # Mat) Path\<close> if
+  \<open>member (\<not>pol, prp) Path\<close> and 
+  \<open>nanoCoP (Clause Cls # Mat) Path\<close>
+  by (smt (verit, best) ExtensionLit PathAxiom nanoCoP2.member.simps(2) that(1) that(2))
+
+lemma ReductionLitC: 
+  \<open>nanoCoP (LitC pol prp # Mat) Path\<close> if 
+  \<open>member (\<not>pol, prp) Path\<close>
+  by (smt (verit) ExtensionLitC PathAxiom nanoCoP2.member.simps(2) that)
+
 
 (*Example proofs*)
 context begin
@@ -714,12 +719,11 @@ proof (induct \<open>nodesMat mat\<close> arbitrary: mat rule: less_induct)
         by auto
       moreover obtain i where \<open>i prp = pol\<close>
         by simp
-      ultimately have \<open>\<not>semanticsMat i mat\<close> 
-        by simp
       moreover have \<open>pathMat [(pol,prp)] mat\<close> 
         by (simp add: mat_def)
       ultimately show ?thesis 
-        by auto
+        using mat_def
+        by (metis Pair_inject list.distinct(1) list.set_cases semanticsMat.simps(1) set_ConsD)
     next
       case 2
       then show ?thesis
@@ -812,10 +816,6 @@ next
   then show ?case  
     by (meson extPath(2) pathMat.simps(3))
 next
-  case (ReductionLit pol prp Path Cls Mat)
-  then show ?case 
-    by (smt (verit) ext_iff member_iff pathCls.simps(3) pathMat.simps(1) pathMat.simps(3))
-next
   case (ExtensionLit Mat pol prp Path Cls)
   then show ?case 
     by (metis ext.simps(2) pathCls.simps(3) pathMat.simps(1) pathMat.simps(3))
@@ -823,10 +823,6 @@ next
   case (ExtensionMat mat Mat Path Cls)
   then show ?case 
     by (metis pathCls.simps(3) pathMat.simps(3) split_matrix_preserves_path)
-next
-  case (ReductionLitC pol prp Path Mat)
-  then show ?case 
-    by (smt (verit, del_insts) ext_iff member_iff pathCls.simps(1) pathMat.simps(3))
 next
   case (ExtensionLitC Mat pol prp Path)
   then show ?case
@@ -990,5 +986,7 @@ theorem completeness: \<open>
 
 theorem main: \<open>nanoCoP mat [] \<longleftrightarrow> (\<forall> i. semanticsMat i (Matrix mat))\<close> 
   using completeness soundness by auto
+
+
 
 end
